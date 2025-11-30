@@ -1,19 +1,19 @@
 version: 1
 applications:
-  - frontend:
+  - appRoot: packages/frontend
+    frontend:
       phases:
         preBuild:
           commands:
-            - npm install
+            - npm ci
         build:
           commands:
-            - npm run build -w @newsfeed/frontend
+            - npm run build
       artifacts:
-        baseDirectory: packages/frontend/.next
+        baseDirectory: .next
         files:
           - '**/*'
       cache:
         paths:
           - node_modules/**/*
-          - packages/frontend/.next/cache/**/*
-
+          - .next/cache/**/*
