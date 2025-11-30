@@ -10,6 +10,7 @@
     "build": "npm run build --workspaces",
     "build:backend": "npm run build -w @newsfeed/backend",
     "build:frontend": "npm run build -w @newsfeed/frontend",
+    "dev": "npm run dev -w @newsfeed/frontend",
     "test": "npm run test --workspaces --if-present",
     "test:backend": "npm run test -w @newsfeed/backend",
     "lint": "npm run lint --workspaces --if-present",

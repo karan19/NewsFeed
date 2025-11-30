@@ -70,6 +70,19 @@ A newsfeed application that consolidates data from multiple DynamoDB tables into
 - [x] Created `packages/frontend` placeholder
 - [x] Updated all configurations for new structure
 
+### Phase 8: Frontend Scaffold (Completed)
+
+- [x] Initialized Next.js 16 with TypeScript + Tailwind CSS
+- [x] Set up shadcn/ui components (button, card, input, label)
+- [x] Configured AWS Amplify Auth with Cognito
+  - User Pool: `us-west-2_wudnFpd2a`
+  - App Client: `1c7psmuc5fguvrubvg2fbdu230`
+- [x] Created AuthProvider with login/logout flow
+- [x] Created QueryProvider for TanStack Query
+- [x] Created login page with dark theme
+- [x] Created protected feed page with placeholder data
+- [x] Auto-redirect based on auth state
+
 ---
 
 ## 📊 Current State
@@ -180,10 +193,13 @@ NewsFeed/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   │
-│   └── frontend/                       # Web application (coming soon)
+│   └── frontend/                       # Next.js web application
+│       ├── src/
+│       │   ├── app/                    # Next.js App Router pages
+│       │   ├── components/             # React components + shadcn/ui
+│       │   └── lib/                    # Utilities and config
 │       ├── package.json
-│       ├── tsconfig.json
-│       └── README.md
+│       └── tsconfig.json
 │
 ├── package.json                        # Root package.json (npm workspaces)
 ├── tsconfig.json                       # Root tsconfig
@@ -218,9 +234,13 @@ npm run build
 # Build backend only
 npm run build:backend
 
-# Deploy to AWS
+# Deploy backend to AWS
 npm run deploy
 # Or: cd packages/backend && npx cdk deploy --profile codex
+
+# Start frontend dev server
+npm run dev -w @newsfeed/frontend
+# Access at http://localhost:3000
 
 # Run tests
 npm test
@@ -246,11 +266,14 @@ aws logs tail /aws/lambda/NewsFeed_Notes_Processor --profile codex --region us-w
 
 ---
 
-## 🔜 Next Steps (Not Started)
+## 🔜 Next Steps
 
 1. **Build newsfeed API** - API Gateway + Lambda to query unified table
-2. **Add search indexing** - OpenSearch integration for full-text search
-3. **Build newsfeed UI** - Frontend to display the feed
+2. **Connect frontend to API** - Replace placeholder data with real API calls
+3. **Add infinite scroll** - Pagination with TanStack Query
+4. **Add filtering** - Filter by source_type, record_type
+5. **Add search indexing** - OpenSearch integration for full-text search
+6. **Deploy to Amplify** - Set up CI/CD for frontend
 
 ---
 
