@@ -10,9 +10,12 @@ applications:
           commands:
             - npm run build
       artifacts:
-        baseDirectory: .next
+        baseDirectory: .
         files:
-          - '**/*'
+          - .next/**/*
+          - public/**/*
+          - package.json
+          - next.config.ts
       cache:
         paths:
           - .next/cache/**/*
