@@ -1,20 +1,21 @@
 version: 1
 applications:
-  - appRoot: packages/frontend
-    frontend:
+  - frontend:
       phases:
         preBuild:
           commands:
-            # Install dependencies from root context
-            - cd ../.. && npm ci
+            - npm ci
         build:
           commands:
-            - npm run build
+            - cd packages/frontend && npm run build
+            - mv packages/frontend/.next .next
+            - mv packages/frontend/public public
+            - mv packages/frontend/package.json package.json
       artifacts:
         baseDirectory: .next
         files:
           - '**/*'
       cache:
         paths:
-          - .next/cache/**/*
-          - ../../node_modules/**/*
+          - node_modules/**/*
+          - packages/frontend/.next/cache/**/*
