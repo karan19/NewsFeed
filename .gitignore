@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+cdk.out/
+*.js
+*.d.ts
+
+# Keep these JS files
+!jest.config.js
+
+# IDE
+.idea/
+*.swp
+*.swo
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# CDK context
+cdk.context.json
+
+# Temporary files
+*.tmp
+*.temp
+
