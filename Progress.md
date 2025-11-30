@@ -63,6 +63,13 @@ A newsfeed application that consolidates data from multiple DynamoDB tables into
 - [x] Backfilled all 196 existing records to unified table
 - [x] Supports: dry-run, single table, limit, all tables
 
+### Phase 7: Monorepo Restructure (Completed)
+
+- [x] Restructured project as npm workspaces monorepo
+- [x] Moved backend code to `packages/backend`
+- [x] Created `packages/frontend` placeholder
+- [x] Updated all configurations for new structure
+
 ---
 
 ## 📊 Current State
@@ -151,52 +158,40 @@ CDK will automatically enable streams and wire everything up!
 
 ---
 
-## 📁 Project Structure
+## 📁 Project Structure (Monorepo)
 
 ```
 NewsFeed/
-├── bin/
-│   └── app.ts                          # CDK app entry point
-├── lib/
-│   ├── newsfeed-stack.ts               # Main CDK stack
-│   └── constructs/
-│       ├── stream-enabler.ts           # Custom Resource to enable streams
-│       └── source-table-processor.ts   # Reusable processor construct
-├── scripts/
-│   └── backfill.ts                     # Backfill CLI tool
-├── src/
-│   ├── config/
-│   │   ├── source-tables.ts            # Source table configurations
-│   │   └── available-tables.ts         # All available tables reference
-│   ├── lambdas/
-│   │   ├── enable-stream-handler/      # Stream enabler Lambda
-│   │   ├── notes-stream-processor/     # Notes handler
-│   │   ├── contacts-stream-processor/  # Contacts handler
-│   │   ├── thoughts-stream-processor/  # Thoughts handler
-│   │   ├── projects-stream-processor/  # Projects handler
-│   │   ├── workboard-stream-processor/ # Workboard handler
-│   │   ├── capture-stream-processor/   # Capture handler
-│   │   ├── llm-council-stream-processor/ # LLM Council handler
-│   │   └── mcp-chat-stream-processor/  # MCP Chat handler
-│   └── shared/
-│       ├── transformers/
-│       │   └── index.ts                # Shared transformation logic
-│       ├── types/
-│       │   └── unified-record.ts       # TypeScript interfaces
-│       └── utils/
-│           ├── logger.ts               # Structured JSON logger
-│           └── dynamodb-client.ts      # DynamoDB helper functions
-├── test/
-│   └── newsfeed-stack.test.ts          # CDK stack tests
+├── packages/
+│   ├── backend/                        # AWS CDK + Lambda
+│   │   ├── bin/
+│   │   │   └── app.ts                  # CDK app entry point
+│   │   ├── lib/
+│   │   │   ├── newsfeed-stack.ts       # Main CDK stack
+│   │   │   └── constructs/             # Reusable CDK constructs
+│   │   ├── scripts/
+│   │   │   └── backfill.ts             # Backfill CLI tool
+│   │   ├── src/
+│   │   │   ├── config/                 # Source table configurations
+│   │   │   ├── lambdas/                # Lambda function handlers (8 total)
+│   │   │   └── shared/                 # Shared utilities and types
+│   │   ├── test/
+│   │   ├── cdk.json
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── frontend/                       # Web application (coming soon)
+│       ├── package.json
+│       ├── tsconfig.json
+│       └── README.md
+│
+├── package.json                        # Root package.json (npm workspaces)
+├── tsconfig.json                       # Root tsconfig
 ├── .cursorrules                        # Coding conventions
 ├── .gitignore
-├── cdk.json                            # CDK configuration
-├── jest.config.js
-├── package.json
-├── tsconfig.json
-├── ProjectDescription.md               # Original project description
 ├── Progress.md                         # This file
-└── TODO.md                             # Technical debt tracker
+├── TODO.md                             # Technical debt tracker
+└── ProjectDescription.md               # Original project description
 ```
 
 ---
@@ -214,14 +209,18 @@ NewsFeed/
 # Navigate to project
 cd /Users/karankanchetty/workplace/M1000M/AWS/NewsFeed
 
-# Install dependencies
+# Install all dependencies (npm workspaces)
 npm install
 
-# Build
+# Build all packages
 npm run build
 
-# Deploy changes
-npx cdk deploy --profile codex
+# Build backend only
+npm run build:backend
+
+# Deploy to AWS
+npm run deploy
+# Or: cd packages/backend && npx cdk deploy --profile codex
 
 # Run tests
 npm test
@@ -230,22 +229,18 @@ npm test
 ### Useful Commands
 
 ```bash
-# Check unified table count
-aws dynamodb scan --table-name NewsFeed_Unified_Table --profile codex --region us-west-2 --select COUNT
+# From monorepo root
+npm run backfill                         # Run backfill
+npm run backfill:dry                     # Dry run backfill
 
-# Check unified table by record type
-aws dynamodb scan --table-name NewsFeed_Unified_Table --profile codex --region us-west-2 --output json | jq '.Items | group_by(.record_type.S) | map({record_type: .[0].record_type.S, count: length})'
-
-# Backfill all tables (dry run)
-npx ts-node scripts/backfill.ts --all --dry-run --profile codex
-
-# Backfill all tables (actual)
+# From packages/backend
 npx ts-node scripts/backfill.ts --all --profile codex
-
-# Backfill single table
 npx ts-node scripts/backfill.ts --table notes --profile codex
+npx cdk deploy --profile codex
+npx cdk diff --profile codex
 
-# Check Lambda logs
+# AWS CLI
+aws dynamodb scan --table-name NewsFeed_Unified_Table --profile codex --region us-west-2 --select COUNT
 aws logs tail /aws/lambda/NewsFeed_Notes_Processor --profile codex --region us-west-2 --follow
 ```
 

@@ -1,0 +1,14 @@
+{
+  "name": "@newsfeed/frontend",
+  "version": "0.1.0",
+  "description": "NewsFeed Frontend - Web application for viewing the unified newsfeed",
+  "private": true,
+  "scripts": {
+    "dev": "echo 'Frontend not yet implemented'",
+    "build": "echo 'Frontend not yet implemented'",
+    "start": "echo 'Frontend not yet implemented'"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
+

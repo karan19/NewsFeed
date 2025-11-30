@@ -1,14 +1,18 @@
 # Dependencies
 node_modules/
+package-lock.json
 
 # Build outputs
 dist/
 cdk.out/
 *.js
 *.d.ts
+.next/
+out/
 
 # Keep these JS files
 !jest.config.js
+!*.config.js
 
 # IDE
 .idea/
@@ -31,6 +35,7 @@ coverage/
 .env
 .env.local
 .env.*.local
+.env.production
 
 # CDK context
 cdk.context.json
@@ -39,3 +44,5 @@ cdk.context.json
 *.tmp
 *.temp
 
+# Turbo (if using turborepo later)
+.turbo/

@@ -3,11 +3,17 @@
 ## Project Overview
 This is a newsfeed application that consolidates data from multiple DynamoDB tables into a unified table using AWS Lambda and DynamoDB Streams.
 
+## Monorepo Structure
+This is an npm workspaces monorepo with:
+- `packages/backend` - AWS CDK infrastructure and Lambda functions
+- `packages/frontend` - Web application (coming soon)
+
 ## Tech Stack
 - **Infrastructure**: AWS CDK (TypeScript)
 - **Lambda Runtime**: Node.js with TypeScript
 - **Database**: Amazon DynamoDB
 - **Cloud Provider**: AWS
+- **Package Manager**: npm workspaces
 
 ## Code Style & Conventions
 
@@ -27,7 +33,7 @@ This is a newsfeed application that consolidates data from multiple DynamoDB tab
 - **Interfaces**: PascalCase with `I` prefix optional (e.g., `UnifiedRecord` or `IUnifiedRecord`)
 
 ### CDK Conventions
-- One stack per file in `lib/` directory
+- One stack per file in `packages/backend/lib/` directory
 - Use constructs for reusable components
 - Always add descriptions to CloudFormation resources
 - Use environment variables for configuration, not hardcoded values
@@ -36,8 +42,8 @@ This is a newsfeed application that consolidates data from multiple DynamoDB tab
   - `Environment: Production`
 
 ### Lambda Conventions
-- Each Lambda function in its own directory under `src/lambdas/`
-- Shared utilities in `src/shared/`
+- Each Lambda function in its own directory under `packages/backend/src/lambdas/`
+- Shared utilities in `packages/backend/src/shared/`
 - Keep handlers thin - business logic in separate modules
 - Always handle DynamoDB Stream event types: INSERT, MODIFY, REMOVE
 - Implement idempotent operations
@@ -70,16 +76,49 @@ This is a newsfeed application that consolidates data from multiple DynamoDB tab
 ## Project Structure
 ```
 NewsFeed/
-├── bin/                    # CDK app entry point
-├── lib/                    # CDK stacks and constructs
-├── src/
-│   ├── lambdas/           # Lambda function handlers
-│   │   └── {function}/    # Each Lambda in its own folder
-│   └── shared/            # Shared utilities and types
-├── test/                  # Test files
-├── cdk.json               # CDK configuration
-├── tsconfig.json          # TypeScript configuration
-└── package.json           # Dependencies
+├── packages/
+│   ├── backend/                    # AWS CDK + Lambda
+│   │   ├── bin/                    # CDK app entry point
+│   │   ├── lib/                    # CDK stacks and constructs
+│   │   ├── src/
+│   │   │   ├── config/             # Source table configurations
+│   │   │   ├── lambdas/            # Lambda function handlers
+│   │   │   └── shared/             # Shared utilities and types
+│   │   ├── scripts/                # CLI tools (backfill, etc.)
+│   │   ├── test/                   # Test files
+│   │   ├── cdk.json
+│   │   ├── package.json
+│   │   └── tsconfig.json
+│   │
+│   └── frontend/                   # Web application (coming soon)
+│       ├── src/
+│       ├── package.json
+│       └── tsconfig.json
+│
+├── package.json                    # Root package.json (workspaces)
+├── tsconfig.json                   # Root tsconfig (references)
+├── .cursorrules
+├── .gitignore
+├── Progress.md
+├── TODO.md
+└── ProjectDescription.md
+```
+
+## Common Commands
+
+```bash
+# From monorepo root
+npm install                              # Install all dependencies
+npm run build                            # Build all packages
+npm run build:backend                    # Build backend only
+npm run deploy                           # Deploy CDK stack
+npm run backfill                         # Run backfill script
+npm run backfill:dry                     # Dry run backfill
+
+# From packages/backend
+npm run build                            # Build backend
+npx cdk deploy --profile codex           # Deploy to AWS
+npx ts-node scripts/backfill.ts --help   # Backfill help
 ```
 
 ## AWS Resources Naming (Ada_Case)
@@ -93,4 +132,3 @@ NewsFeed/
 All resources are tagged with:
 - `Project: NewsFeed`
 - `Environment: Production`
-
