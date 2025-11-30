@@ -9,11 +9,8 @@ applications:
         build:
           commands:
             - npm run build
-            # Copy static assets to standalone
-            - cp -r .next/static .next/standalone/packages/frontend/.next/static
-            - cp -r public .next/standalone/packages/frontend/public
       artifacts:
-        baseDirectory: .next/standalone/packages/frontend
+        baseDirectory: .next
         files:
           - '**/*'
       cache:
