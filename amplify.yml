@@ -5,7 +5,7 @@ applications:
       phases:
         preBuild:
           commands:
-            # Install dependencies from root (because of workspaces)
+            # Install dependencies from root context
             - cd ../.. && npm ci
         build:
           commands:
