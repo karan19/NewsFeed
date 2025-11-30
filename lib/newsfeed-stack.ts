@@ -6,6 +6,8 @@ import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 import * as path from 'path';
+import { StreamEnabler } from './constructs/stream-enabler';
+import { getEnabledSourceTables, KMS_KEY_ARN, SourceTableConfig } from '../src/config/source-tables';
 
 export class NewsFeedStack extends cdk.Stack {
   public readonly unifiedTable: dynamodb.Table;
@@ -13,9 +15,8 @@ export class NewsFeedStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
-    // Get stream ARNs from context
-    const notesStreamArn = this.node.tryGetContext('notesStreamArn');
-    const contactsStreamArn = this.node.tryGetContext('contactsStreamArn');
+    // Get enabled source tables from configuration
+    const sourceTables = getEnabledSourceTables();
 
     // Create the unified DynamoDB table
     this.unifiedTable = new dynamodb.Table(this, 'Unified_Table', {
@@ -62,123 +63,9 @@ export class NewsFeedStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
-    // Create Lambda for notes stream processing
-    const notesProcessor = new lambdaNodejs.NodejsFunction(this, 'Notes_Stream_Processor', {
-      functionName: 'NewsFeed_Notes_Processor',
-      description: 'Processes DynamoDB stream events from nexusnote-notes-production table',
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'handler',
-      entry: path.join(__dirname, '../src/lambdas/notes-stream-processor/handler.ts'),
-      timeout: cdk.Duration.seconds(30),
-      memorySize: 256,
-      environment: {
-        UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
-        LOG_LEVEL: 'INFO',
-      },
-      bundling: {
-        minify: true,
-        sourceMap: true,
-        externalModules: ['@aws-sdk/*'],
-      },
-    });
-
-    // Create Lambda for contacts stream processing
-    const contactsProcessor = new lambdaNodejs.NodejsFunction(this, 'Contacts_Stream_Processor', {
-      functionName: 'NewsFeed_Contacts_Processor',
-      description: 'Processes DynamoDB stream events from nexusnote-inno-contacts-production table',
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'handler',
-      entry: path.join(__dirname, '../src/lambdas/contacts-stream-processor/handler.ts'),
-      timeout: cdk.Duration.seconds(30),
-      memorySize: 256,
-      environment: {
-        UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
-        LOG_LEVEL: 'INFO',
-      },
-      bundling: {
-        minify: true,
-        sourceMap: true,
-        externalModules: ['@aws-sdk/*'],
-      },
-    });
-
-    // Grant write permissions to unified table
-    this.unifiedTable.grantReadWriteData(notesProcessor);
-    this.unifiedTable.grantReadWriteData(contactsProcessor);
-
-    // Grant read permissions on source table streams
-    notesProcessor.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        'dynamodb:DescribeStream',
-        'dynamodb:GetRecords',
-        'dynamodb:GetShardIterator',
-        'dynamodb:ListStreams',
-      ],
-      resources: [
-        `arn:aws:dynamodb:${this.region}:${this.account}:table/nexusnote-notes-production/stream/*`,
-      ],
-    }));
-
-    contactsProcessor.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        'dynamodb:DescribeStream',
-        'dynamodb:GetRecords',
-        'dynamodb:GetShardIterator',
-        'dynamodb:ListStreams',
-      ],
-      resources: [
-        `arn:aws:dynamodb:${this.region}:${this.account}:table/nexusnote-inno-contacts-production/stream/*`,
-      ],
-    }));
-
-    // Grant KMS decrypt permissions for encrypted source tables
-    const kmsKeyArn = `arn:aws:kms:${this.region}:${this.account}:key/7e61921e-4255-4ec5-99e5-05efb9850bbb`;
-    
-    notesProcessor.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['kms:Decrypt', 'kms:DescribeKey'],
-      resources: [kmsKeyArn],
-    }));
-
-    contactsProcessor.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['kms:Decrypt', 'kms:DescribeKey'],
-      resources: [kmsKeyArn],
-    }));
-
-    // Add DynamoDB Stream event sources if stream ARNs are provided
-    if (notesStreamArn) {
-      const notesSourceTable = dynamodb.Table.fromTableAttributes(this, 'Notes_Source_Table', {
-        tableArn: `arn:aws:dynamodb:${this.region}:${this.account}:table/nexusnote-notes-production`,
-        tableStreamArn: notesStreamArn,
-      });
-
-      notesProcessor.addEventSource(
-        new lambdaEventSources.DynamoEventSource(notesSourceTable, {
-          startingPosition: lambda.StartingPosition.TRIM_HORIZON,
-          batchSize: 10,
-          maxBatchingWindow: cdk.Duration.seconds(5),
-          retryAttempts: 3,
-          bisectBatchOnError: true,
-          reportBatchItemFailures: true,
-        })
-      );
-    }
-
-    if (contactsStreamArn) {
-      const contactsSourceTable = dynamodb.Table.fromTableAttributes(this, 'Contacts_Source_Table', {
-        tableArn: `arn:aws:dynamodb:${this.region}:${this.account}:table/nexusnote-inno-contacts-production`,
-        tableStreamArn: contactsStreamArn,
-      });
-
-      contactsProcessor.addEventSource(
-        new lambdaEventSources.DynamoEventSource(contactsSourceTable, {
-          startingPosition: lambda.StartingPosition.TRIM_HORIZON,
-          batchSize: 10,
-          maxBatchingWindow: cdk.Duration.seconds(5),
-          retryAttempts: 3,
-          bisectBatchOnError: true,
-          reportBatchItemFailures: true,
-        })
-      );
+    // Create stream enabler and processor for each source table
+    for (const tableConfig of sourceTables) {
+      this.createStreamProcessor(tableConfig);
     }
 
     // Outputs
@@ -194,22 +81,107 @@ export class NewsFeedStack extends cdk.Stack {
       exportName: 'NewsFeed-Unified-Table-Arn',
     });
 
-    new cdk.CfnOutput(this, 'Notes_Processor_Arn', {
-      value: notesProcessor.functionArn,
-      description: 'ARN of the notes stream processor Lambda',
+    new cdk.CfnOutput(this, 'Source_Tables_Count', {
+      value: sourceTables.length.toString(),
+      description: 'Number of source tables configured',
+    });
+  }
+
+  /**
+   * Create a stream enabler and Lambda processor for a source table
+   */
+  private createStreamProcessor(config: SourceTableConfig): void {
+    const { processorId, tableName, description } = config;
+    const constructId = this.toPascalCase(processorId);
+
+    // Enable streams on the source table using Custom Resource
+    const streamEnabler = new StreamEnabler(this, `${constructId}_Stream_Enabler`, {
+      tableName: tableName,
+      processorId: processorId,
+      kmsKeyArn: KMS_KEY_ARN,
     });
 
-    new cdk.CfnOutput(this, 'Contacts_Processor_Arn', {
-      value: contactsProcessor.functionArn,
-      description: 'ARN of the contacts stream processor Lambda',
+    // Create Lambda processor for this source table
+    const processor = new lambdaNodejs.NodejsFunction(this, `${constructId}_Stream_Processor`, {
+      functionName: `NewsFeed_${constructId}_Processor`,
+      description: description,
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, `../src/lambdas/${processorId}-stream-processor/handler.ts`),
+      timeout: cdk.Duration.seconds(30),
+      memorySize: 256,
+      environment: {
+        UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
+        SOURCE_TABLE_NAME: tableName,
+        LOG_LEVEL: 'INFO',
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
     });
 
-    // Reminder output if streams not configured
-    if (!notesStreamArn || !contactsStreamArn) {
-      new cdk.CfnOutput(this, 'Streams_Reminder', {
-        value: 'Enable DynamoDB Streams on source tables, then redeploy with stream ARNs',
-        description: 'Action required to complete stream processing setup',
-      });
-    }
+    // Grant write permissions to unified table
+    this.unifiedTable.grantReadWriteData(processor);
+
+    // Grant read permissions on source table stream
+    processor.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        'dynamodb:DescribeStream',
+        'dynamodb:GetRecords',
+        'dynamodb:GetShardIterator',
+        'dynamodb:ListStreams',
+      ],
+      resources: [
+        `arn:aws:dynamodb:${this.region}:${this.account}:table/${tableName}/stream/*`,
+      ],
+    }));
+
+    // Grant KMS decrypt permissions for encrypted source tables
+    processor.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['kms:Decrypt', 'kms:DescribeKey'],
+      resources: [KMS_KEY_ARN],
+    }));
+
+    // Import the source table with the stream ARN from the enabler
+    const sourceTable = dynamodb.Table.fromTableAttributes(this, `${constructId}_Source_Table`, {
+      tableArn: `arn:aws:dynamodb:${this.region}:${this.account}:table/${tableName}`,
+      tableStreamArn: streamEnabler.streamArn,
+    });
+
+    // Add DynamoDB Stream event source
+    processor.addEventSource(
+      new lambdaEventSources.DynamoEventSource(sourceTable, {
+        startingPosition: lambda.StartingPosition.TRIM_HORIZON,
+        batchSize: 10,
+        maxBatchingWindow: cdk.Duration.seconds(5),
+        retryAttempts: 3,
+        bisectBatchOnError: true,
+        reportBatchItemFailures: true,
+      })
+    );
+
+    // Output the processor ARN
+    new cdk.CfnOutput(this, `${constructId}_Processor_Arn`, {
+      value: processor.functionArn,
+      description: `ARN of the ${processorId} stream processor Lambda`,
+    });
+
+    // Output the stream ARN
+    new cdk.CfnOutput(this, `${constructId}_Stream_Arn`, {
+      value: streamEnabler.streamArn,
+      description: `Stream ARN for ${tableName}`,
+    });
+  }
+
+  /**
+   * Convert kebab-case or snake_case to PascalCase
+   */
+  private toPascalCase(str: string): string {
+    return str
+      .split(/[-_]/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join('');
   }
 }

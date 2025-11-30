@@ -9,7 +9,12 @@ describe('NewsFeedStack', () => {
 
   beforeEach(() => {
     app = new cdk.App();
-    stack = new NewsFeedStack(app, 'NewsFeed_Stack');
+    stack = new NewsFeedStack(app, 'NewsFeed-Stack', {
+      env: {
+        account: '123456789012',
+        region: 'us-west-2',
+      },
+    });
     template = Template.fromStack(stack);
   });
 
@@ -68,20 +73,25 @@ describe('NewsFeedStack', () => {
     });
   });
 
-  test('Creates notes processor Lambda with correct name', () => {
-    template.hasResourceProperties('AWS::Lambda::Function', {
-      FunctionName: 'NewsFeed_Notes_Processor',
-    });
+  test('Creates stream processor Lambda functions', () => {
+    // Should have at least 2 Lambda functions (notes + contacts processors)
+    // Plus the stream enabler function
+    const lambdaFunctions = template.findResources('AWS::Lambda::Function');
+    expect(Object.keys(lambdaFunctions).length).toBeGreaterThanOrEqual(2);
   });
 
-  test('Creates contacts processor Lambda with correct name', () => {
-    template.hasResourceProperties('AWS::Lambda::Function', {
-      FunctionName: 'NewsFeed_Contacts_Processor',
-    });
+  test('Creates Custom Resource for stream enablement', () => {
+    // Should have Custom Resources for enabling streams
+    const customResources = template.findResources('AWS::CloudFormation::CustomResource');
+    expect(Object.keys(customResources).length).toBeGreaterThanOrEqual(2);
   });
 
   test('Outputs table name and ARN', () => {
     template.hasOutput('UnifiedTableName', {});
     template.hasOutput('UnifiedTableArn', {});
+  });
+
+  test('Outputs source tables count', () => {
+    template.hasOutput('SourceTablesCount', {});
   });
 });

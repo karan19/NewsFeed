@@ -33,7 +33,8 @@
     "bin/**/*",
     "lib/**/*",
     "src/**/*",
-    "test/**/*"
+    "test/**/*",
+    "scripts/**/*"
   ],
   "exclude": [
     "node_modules",

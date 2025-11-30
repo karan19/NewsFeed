@@ -17,8 +17,6 @@
     ]
   },
   "context": {
-    "notesStreamArn": "arn:aws:dynamodb:us-west-2:654654148983:table/nexusnote-notes-production/stream/2025-11-30T03:37:42.793",
-    "contactsStreamArn": "arn:aws:dynamodb:us-west-2:654654148983:table/nexusnote-inno-contacts-production/stream/2025-11-30T03:37:44.275",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [

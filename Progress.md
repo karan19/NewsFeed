@@ -30,25 +30,56 @@ A newsfeed application that consolidates data from multiple DynamoDB tables into
   - Point-in-time recovery: Enabled
   - Streams: Enabled (NEW_AND_OLD_IMAGES)
 
-- [x] Created Lambda stream processors:
-  - `NewsFeed_Notes_Processor` - processes notes table stream
-  - `NewsFeed_Contacts_Processor` - processes contacts table stream
-
-- [x] Enabled DynamoDB Streams on source tables (via CLI - see TODO for proper fix)
+- [x] Created Lambda stream processors (8 total)
+- [x] Enabled DynamoDB Streams on source tables
 - [x] Added KMS decrypt permissions for encrypted source tables
 - [x] Deployed stack to AWS: `NewsFeed-Stack`
 
 ### Phase 3: Stream Processing (Completed)
 
-- [x] Notes stream processor syncs: `title`, `content`
-- [x] Contacts stream processor syncs: `contactName`, `role`, `workingStyle`
-- [x] Verified real-time sync with test records
+- [x] All 8 stream processors syncing data
 - [x] Both INSERT and MODIFY events handled
 - [x] Soft delete on REMOVE events (sets `is_deleted: true`)
+- [x] Verified real-time sync with test records
+
+### Phase 4: Dynamic Stream Management (Completed)
+
+- [x] Created source tables configuration file (`src/config/source-tables.ts`)
+- [x] Created `StreamEnabler` Custom Resource construct
+- [x] CDK now automatically enables streams on source tables during deployment
+- [x] Removed hardcoded stream ARNs from `cdk.json`
+- [x] Adding new source tables is now configuration-driven
+
+### Phase 5: Multi-Table Expansion (Completed)
+
+- [x] Added 6 new source tables (total: 8 tables)
+- [x] Created `available-tables.ts` for table discovery
+- [x] All Lambda handlers created and deployed
+
+### Phase 6: Backfill Utility (Completed)
+
+- [x] Created shared transformers (`src/shared/transformers/index.ts`)
+- [x] Created backfill CLI script (`scripts/backfill.ts`)
+- [x] Backfilled all 196 existing records to unified table
+- [x] Supports: dry-run, single table, limit, all tables
 
 ---
 
 ## 📊 Current State
+
+### Unified Table Statistics
+
+| Record Type | Count |
+|-------------|-------|
+| NOTE | 10 |
+| CONTACT | 3 |
+| THOUGHT | 1 |
+| PROJECT | 15 |
+| WORKBOARD | 72 |
+| CAPTURE | 2 |
+| LLM_CONVERSATION | 2 |
+| MCP_CONVERSATION | 92 |
+| **TOTAL** | **197** |
 
 ### AWS Resources Deployed
 
@@ -56,15 +87,21 @@ A newsfeed application that consolidates data from multiple DynamoDB tables into
 |----------|------|--------|
 | CloudFormation Stack | `NewsFeed-Stack` | us-west-2 |
 | Unified Table | `NewsFeed_Unified_Table` | us-west-2 |
-| Notes Lambda | `NewsFeed_Notes_Processor` | us-west-2 |
-| Contacts Lambda | `NewsFeed_Contacts_Processor` | us-west-2 |
+| Lambda Processors | 8 functions | us-west-2 |
+| Stream Enablers | 8 functions | us-west-2 |
 
-### Source Tables Connected
+### Source Tables Connected (8 Total)
 
-| Source Table | Stream Status | Processor |
-|--------------|---------------|-----------|
-| `nexusnote-notes-production` | ✅ Enabled | `NewsFeed_Notes_Processor` |
-| `nexusnote-inno-contacts-production` | ✅ Enabled | `NewsFeed_Contacts_Processor` |
+| Source Table | Record Type | Synced Fields | Status |
+|--------------|-------------|---------------|--------|
+| `nexusnote-notes-production` | NOTE | title, content | ✅ |
+| `nexusnote-inno-contacts-production` | CONTACT | contactName, role, workingStyle | ✅ |
+| `nexusnote-thoughts-production` | THOUGHT | content, tagName | ✅ |
+| `nexusnote-implementation-projects-production` | PROJECT | title, description, status | ✅ |
+| `nexusnote-tracking-workboard-production` | WORKBOARD | chainId, slotIndex, archived | ✅ |
+| `Capture` | CAPTURE | title, content, source, sourceUrl | ✅ |
+| `LlmCouncilStack-...` | LLM_CONVERSATION | id | ✅ |
+| `MCP-chat-conversations` | MCP_CONVERSATION | sessionId, userId | ✅ |
 
 ### Unified Table Schema
 
@@ -74,20 +111,13 @@ SK: RECORD
 source_type: "personal" | "external"
 table_name: original table name
 original_id: original record's key
-record_type: "NOTE" | "CONTACT"
+record_type: NOTE | CONTACT | THOUGHT | PROJECT | WORKBOARD | CAPTURE | LLM_CONVERSATION | MCP_CONVERSATION
 content: { synced fields as map }
 created_at: ISO 8601 timestamp
 updated_at: ISO 8601 timestamp
 event_type: "INSERT" | "MODIFY" | "REMOVE"
 is_deleted: boolean
 ```
-
-### Field Mappings
-
-| Source Table | Fields Synced to Unified Table |
-|--------------|-------------------------------|
-| `nexusnote-notes-production` | `title`, `content` |
-| `nexusnote-inno-contacts-production` | `contactName`, `role`, `workingStyle` |
 
 ### Tags on All Resources
 
@@ -102,19 +132,22 @@ is_deleted: boolean
 
 | File | Purpose |
 |------|---------|
-| `cdk.json` | CDK config with stream ARNs in context |
+| `src/config/source-tables.ts` | **Source table definitions** - add new tables here |
+| `src/config/available-tables.ts` | Reference of all DynamoDB tables in account |
+| `src/shared/transformers/index.ts` | Shared transformation logic |
+| `scripts/backfill.ts` | CLI tool for backfilling existing data |
+| `cdk.json` | CDK configuration |
 | `.cursorrules` | Coding conventions and naming standards |
-| `tsconfig.json` | TypeScript strict configuration |
-| `package.json` | Dependencies and scripts |
 
-### Stream ARNs (in cdk.json)
+### Adding a New Source Table
 
-```json
-{
-  "notesStreamArn": "arn:aws:dynamodb:us-west-2:654654148983:table/nexusnote-notes-production/stream/2025-11-30T03:37:42.793",
-  "contactsStreamArn": "arn:aws:dynamodb:us-west-2:654654148983:table/nexusnote-inno-contacts-production/stream/2025-11-30T03:37:44.275"
-}
-```
+1. Add entry to `src/config/source-tables.ts`
+2. Add transformer to `src/shared/transformers/index.ts`
+3. Create Lambda handler at `src/lambdas/{processorId}-stream-processor/handler.ts`
+4. Run `npx cdk deploy --profile codex`
+5. Run `npx ts-node scripts/backfill.ts --table {processorId} --profile codex`
+
+CDK will automatically enable streams and wire everything up!
 
 ---
 
@@ -127,14 +160,27 @@ NewsFeed/
 ├── lib/
 │   ├── newsfeed-stack.ts               # Main CDK stack
 │   └── constructs/
+│       ├── stream-enabler.ts           # Custom Resource to enable streams
 │       └── source-table-processor.ts   # Reusable processor construct
+├── scripts/
+│   └── backfill.ts                     # Backfill CLI tool
 ├── src/
+│   ├── config/
+│   │   ├── source-tables.ts            # Source table configurations
+│   │   └── available-tables.ts         # All available tables reference
 │   ├── lambdas/
-│   │   ├── notes-stream-processor/
-│   │   │   └── handler.ts              # Notes stream handler
-│   │   └── contacts-stream-processor/
-│   │       └── handler.ts              # Contacts stream handler
+│   │   ├── enable-stream-handler/      # Stream enabler Lambda
+│   │   ├── notes-stream-processor/     # Notes handler
+│   │   ├── contacts-stream-processor/  # Contacts handler
+│   │   ├── thoughts-stream-processor/  # Thoughts handler
+│   │   ├── projects-stream-processor/  # Projects handler
+│   │   ├── workboard-stream-processor/ # Workboard handler
+│   │   ├── capture-stream-processor/   # Capture handler
+│   │   ├── llm-council-stream-processor/ # LLM Council handler
+│   │   └── mcp-chat-stream-processor/  # MCP Chat handler
 │   └── shared/
+│       ├── transformers/
+│       │   └── index.ts                # Shared transformation logic
 │       ├── types/
 │       │   └── unified-record.ts       # TypeScript interfaces
 │       └── utils/
@@ -184,24 +230,32 @@ npm test
 ### Useful Commands
 
 ```bash
-# Check unified table contents
-aws dynamodb scan --table-name NewsFeed_Unified_Table --profile codex --region us-west-2
+# Check unified table count
+aws dynamodb scan --table-name NewsFeed_Unified_Table --profile codex --region us-west-2 --select COUNT
+
+# Check unified table by record type
+aws dynamodb scan --table-name NewsFeed_Unified_Table --profile codex --region us-west-2 --output json | jq '.Items | group_by(.record_type.S) | map({record_type: .[0].record_type.S, count: length})'
+
+# Backfill all tables (dry run)
+npx ts-node scripts/backfill.ts --all --dry-run --profile codex
+
+# Backfill all tables (actual)
+npx ts-node scripts/backfill.ts --all --profile codex
+
+# Backfill single table
+npx ts-node scripts/backfill.ts --table notes --profile codex
 
 # Check Lambda logs
 aws logs tail /aws/lambda/NewsFeed_Notes_Processor --profile codex --region us-west-2 --follow
-
-# Check event source mapping status
-aws lambda list-event-source-mappings --function-name NewsFeed_Notes_Processor --profile codex --region us-west-2
 ```
 
 ---
 
 ## 🔜 Next Steps (Not Started)
 
-1. **Backfill existing data** - Sync existing records from source tables to unified table
-2. **Build newsfeed API** - API Gateway + Lambda to query unified table
-3. **Add search indexing** - OpenSearch integration for full-text search
-4. **Build newsfeed UI** - Frontend to display the feed
+1. **Build newsfeed API** - API Gateway + Lambda to query unified table
+2. **Add search indexing** - OpenSearch integration for full-text search
+3. **Build newsfeed UI** - Frontend to display the feed
 
 ---
 
@@ -211,5 +265,6 @@ aws lambda list-event-source-mappings --function-name NewsFeed_Notes_Processor -
 - Stream processing uses `TRIM_HORIZON` starting position (processes from beginning)
 - Batch size: 10 records, max batching window: 5 seconds
 - Retry attempts: 3, with bisect on error enabled
+- Streams are automatically enabled via CDK Custom Resource
+- Backfill script uses shared transformers for consistency
 - See `TODO.md` for technical debt items to address
-

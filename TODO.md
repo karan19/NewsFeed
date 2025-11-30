@@ -4,25 +4,20 @@
 
 ### 🔴 High Priority
 
-- [ ] **Move DynamoDB Stream configuration to NexusNote project**
-  - Currently: Streams were enabled manually via CLI on source tables
-  - Should be: NexusNote CDK should own stream configuration and export ARNs
-  - Why: Prevents drift if NexusNote is redeployed, maintains proper ownership
-  - Action items:
-    1. Update NexusNote CDK to add `stream: StreamViewType.NEW_AND_OLD_IMAGES` to table definitions
-    2. Export stream ARNs as CloudFormation outputs or SSM parameters
-    3. Update NewsFeed CDK to import ARNs via `Fn.importValue()` or SSM lookup
-    4. Remove hardcoded stream ARNs from `cdk.json`
+- [x] ~~**Move DynamoDB Stream configuration to NexusNote project**~~ 
+  - ✅ RESOLVED: Streams are now managed via CDK Custom Resource in NewsFeed project
+  - The `StreamEnabler` construct automatically enables streams on source tables during deployment
+  - Source tables are configured in `src/config/source-tables.ts`
 
 - [ ] **Move KMS key ARN to configuration instead of hardcoding**
-  - Currently: KMS key ARN is hardcoded in `newsfeed-stack.ts`
+  - Currently: KMS key ARN is hardcoded in `src/config/source-tables.ts`
   - Should be: KMS key ARN should be passed via context, SSM parameter, or exported from NexusNote
   - Why: Hardcoded ARNs are fragile and won't work across accounts/environments
   - KMS Key: `arn:aws:kms:us-west-2:654654148983:key/7e61921e-4255-4ec5-99e5-05efb9850bbb`
   - Action items:
     1. Export KMS key ARN from NexusNote CDK (or store in SSM Parameter Store)
     2. Update NewsFeed CDK to import the KMS key ARN dynamically
-    3. Remove hardcoded KMS key ARN from `newsfeed-stack.ts`
+    3. Remove hardcoded KMS key ARN from `src/config/source-tables.ts`
 
 ### 🟡 Medium Priority
 
@@ -32,23 +27,90 @@
 - [ ] **Add CloudWatch alarms for stream processing errors**
   - Monitor for Lambda errors, throttling, iterator age
 
-- [ ] **Implement backfill script for existing data**
-  - Current setup only captures new changes
-  - Need one-time sync of existing records to unified table
+- [x] ~~**Implement backfill script for existing data**~~
+  - ✅ COMPLETED: `scripts/backfill.ts` created
+  - Run with: `npx ts-node scripts/backfill.ts --all --profile codex`
+  - Supports: dry-run, single table, limit, all tables
+  - Backfilled 196 records on 2025-11-30
 
 ### 🟢 Low Priority
 
 - [ ] **Add integration tests**
   - Test stream processing end-to-end with localstack or real AWS
 
+- [ ] **Refactor Lambda handlers to use shared transformers**
+  - Currently: Each Lambda has its own transformation logic
+  - Should be: Import from `src/shared/transformers/index.ts`
+  - Why: Single source of truth, easier maintenance
+
 ---
 
-## Stream ARNs (for reference)
+## Adding a New Source Table
 
-These were enabled via CLI on 2025-11-30:
+To add a new source table to the newsfeed:
 
-| Table | Stream ARN |
-|-------|------------|
-| `nexusnote-notes-production` | `arn:aws:dynamodb:us-west-2:654654148983:table/nexusnote-notes-production/stream/2025-11-30T03:37:42.793` |
-| `nexusnote-inno-contacts-production` | `arn:aws:dynamodb:us-west-2:654654148983:table/nexusnote-inno-contacts-production/stream/2025-11-30T03:37:44.275` |
+1. **Add configuration** to `src/config/source-tables.ts`:
+   ```typescript
+   {
+     processorId: 'new-table',
+     tableName: 'my-new-table-production',
+     sourceType: 'personal',
+     recordType: 'NEW_TYPE',
+     description: 'Syncs new table to unified newsfeed',
+     syncedFields: ['field1', 'field2'],
+     enabled: true,
+   }
+   ```
 
+2. **Add transformer** to `src/shared/transformers/index.ts`:
+   ```typescript
+   export const newTableTransformer: RecordTransformer = {
+     sourceTableName: 'my-new-table-production',
+     sourceType: 'personal',
+     recordType: 'NEW_TYPE',
+     extractId(record) { /* ... */ },
+     transformContent(record) { /* ... */ },
+     getCreatedAt(record) { /* ... */ },
+     getUpdatedAt(record) { /* ... */ },
+   };
+   ```
+
+3. **Create Lambda handler** at `src/lambdas/{processorId}-stream-processor/handler.ts`
+
+4. **Deploy**: `npx cdk deploy --profile codex`
+
+5. **Backfill existing data**: `npx ts-node scripts/backfill.ts --table {processorId} --profile codex`
+
+The CDK stack will automatically:
+- Enable DynamoDB Streams on the source table
+- Create the Lambda processor
+- Wire up the event source mapping
+
+---
+
+## Changing Synced Fields
+
+To change which fields are synced for an existing table:
+
+1. **Update the transformer** in `src/shared/transformers/index.ts`
+2. **Update the Lambda handler** (if not using shared transformer)
+3. **Deploy**: `npx cdk deploy --profile codex`
+4. **Backfill** to update existing records: `npx ts-node scripts/backfill.ts --table {processorId} --profile codex`
+
+---
+
+## Stream ARNs (auto-managed)
+
+Stream ARNs are now automatically detected and managed by the `StreamEnabler` Custom Resource.
+No manual configuration needed!
+
+---
+
+## Current Statistics (as of 2025-11-30)
+
+| Metric | Value |
+|--------|-------|
+| Source Tables | 8 |
+| Total Records in Unified Table | 197 |
+| Lambda Processors | 8 |
+| Stream Enablers | 8 |
