@@ -1,0 +1,25 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="512" height="512" fill="#245B63"/>
+
+  <!-- News card -->
+  <rect x="96" y="96" width="256" height="320" rx="32" ry="32" fill="#F6F2E9"/>
+
+  <!-- "NEWS" text -->
+  <text x="224" y="160"
+        text-anchor="middle"
+        font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+        font-size="56"
+        font-weight="700"
+        fill="#245B63">
+    FEED
+  </text>
+
+  <!-- Feature block -->
+  <rect x="128" y="184" width="192" height="72" rx="8" ry="8" fill="#E3D9C7"/>
+
+  <!-- Lines of text -->
+  <rect x="128" y="276" width="192" height="16" rx="8" ry="8" fill="#D0C4AF"/>
+  <rect x="128" y="308" width="192" height="16" rx="8" ry="8" fill="#D0C4AF"/>
+  <rect x="128" y="340" width="144" height="16" rx="8" ry="8" fill="#D0C4AF"/>
+</svg>
