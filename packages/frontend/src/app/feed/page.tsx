@@ -21,6 +21,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { ThemeToggle } from '@/components/theme-toggle';
+
 // Types
 type RecordType = 'note' | 'thought' | 'contact' | 'project' | 'capture' | 'workboard' | 'llm-conversation' | 'mcp-conversation';
 
@@ -42,6 +44,7 @@ interface FeedItemData {
 }
 
 // Configuration
+// Using null for default icon as requested
 const SOURCE_CONFIG: Record<string, { icon: any, color: string, label: string }> = {
   notes: { icon: StickyNote, color: 'text-yellow-400', label: 'Note' },
   thoughts: { icon: Lightbulb, color: 'text-purple-400', label: 'Thought' },
@@ -50,12 +53,38 @@ const SOURCE_CONFIG: Record<string, { icon: any, color: string, label: string }>
   capture: { icon: Link2, color: 'text-pink-400', label: 'Capture' },
   'llm-council': { icon: Bot, color: 'text-orange-400', label: 'AI Chat' },
   workboard: { icon: KanbanSquare, color: 'text-cyan-400', label: 'Task' },
-  default: { icon: Calendar, color: 'text-gray-400', label: 'Item' }
+  default: { icon: null, color: 'text-gray-400', label: '' }
 };
+
+// Color Palettes for Cards
+// Only keeping the smart palette as it handles both themes
+const SMART_PALETTE = [
+  'bg-zinc-100 dark:bg-slate-900/50 border-zinc-200 dark:border-slate-800',
+  'bg-blue-100 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/50',
+  'bg-emerald-100 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50',
+  'bg-violet-100 dark:bg-violet-950/30 border-violet-200 dark:border-violet-900/50',
+  'bg-orange-100 dark:bg-orange-950/30 border-orange-200 dark:border-orange-900/50',
+  'bg-rose-100 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50',
+  'bg-cyan-100 dark:bg-cyan-950/30 border-cyan-200 dark:border-cyan-900/50',
+  'bg-amber-100 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50',
+  'bg-fuchsia-100 dark:bg-fuchsia-950/30 border-fuchsia-200 dark:border-fuchsia-900/50',
+];
 
 // Utils
 function getSourceConfig(type: string) {
   return SOURCE_CONFIG[type] || SOURCE_CONFIG.default;
+}
+
+function getCardColor(id: string) {
+  // Always use the smart palette
+  const colors = SMART_PALETTE;
+  // Deterministic color based on ID hash
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
 }
 
 function formatDate(dateString: string) {
@@ -147,6 +176,9 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
           const isTall = rowSpan === 'row-span-2' && !isBig;
           const isWide = colSpan.includes('col-span-2') && !isBig;
           const isQuote = item.record_type === 'thought' && !hasTitle;
+          const cardColor = isQuote 
+            ? 'bg-gradient-to-br from-primary/5 to-purple-500/10 border-border' 
+            : getCardColor(item.id);
           
           return (
             <motion.div 
@@ -156,9 +188,10 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
               className={`
                 ${colSpan} ${rowSpan}
                 group relative flex flex-col justify-between
-                rounded-xl border border-neutral-800 bg-neutral-900/40 p-5 
-                hover:border-neutral-700 hover:bg-neutral-900/80 transition-colors cursor-pointer overflow-hidden
-                ${isQuote ? 'justify-center items-center text-center bg-gradient-to-br from-neutral-900/80 to-purple-900/10' : ''}
+                rounded-xl border p-5 
+                ${cardColor}
+                hover:border-primary/50 transition-colors cursor-pointer overflow-hidden
+                ${isQuote ? 'justify-center items-center text-center' : ''}
               `}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
@@ -166,16 +199,18 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                {/* Header */}
                <div className={`flex items-center justify-between w-full mb-3 ${isQuote ? 'absolute top-4 right-4 w-auto mb-0' : ''}`}>
                  <div className={`flex items-center gap-2 ${isQuote ? 'hidden' : ''}`}>
-                   <div className={`p-1 rounded-md bg-neutral-950/50 ${config.color}`}>
-                      <Icon size={12} />
-                   </div>
-                   <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{config.label}</span>
+                   {Icon && (
+                     <div className={`p-1 rounded-md bg-muted ${config.color}`}>
+                        <Icon size={12} />
+                     </div>
+                   )}
+                   {config.label && <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{config.label}</span>}
                  </div>
                  
                  {/* Header Actions */}
                  <div className="flex items-center gap-2">
                     <button 
-                      className="text-neutral-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all p-1 rounded-md hover:bg-neutral-800"
+                      className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all p-1 rounded-md hover:bg-muted"
                       onClick={(e) => {
                         e.stopPropagation(); // Prevent card click
                         onArchive(item.id);
@@ -184,7 +219,7 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                     >
                       <Archive size={14} />
                     </button>
-                    {isBig && <Maximize2 size={14} className="text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                    {isBig && <Maximize2 size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
                  </div>
                </div>
                
@@ -193,31 +228,31 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                  {hasTitle && (
                    <motion.h3 
                      layoutId={`title-${item.id}`}
-                     className={`font-bold text-neutral-200 mb-2 leading-tight ${isBig ? 'text-2xl' : 'text-lg'}`}
+                     className={`font-bold text-foreground mb-2 leading-tight ${isBig ? 'text-2xl' : 'text-lg'}`}
                    >
                      {item.title}
                    </motion.h3>
                  )}
                  
                  <div className={`
-                   text-neutral-400 leading-relaxed whitespace-pre-line
-                   ${isQuote ? 'text-xl font-serif italic text-neutral-300' : 'text-sm'}
+                   text-muted-foreground leading-relaxed whitespace-pre-line
+                   ${isQuote ? 'text-xl font-serif italic text-foreground/80' : 'text-sm'}
                    ${isBig ? 'line-clamp-6' : isTall ? 'line-clamp-[8]' : 'line-clamp-3'}
                  `}>
                    {item.content}
                  </div>
                  
                  {/* Fade out for truncated content */}
-                 {(isBig || isTall || isWide) && <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-neutral-900/90 to-transparent" />}
+                 {(isBig || isTall || isWide) && <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/50 to-transparent" />}
                </div>
                
                {/* Footer */}
-               <div className={`mt-4 pt-4 border-t border-neutral-800/50 flex items-center justify-between text-xs text-neutral-600 ${isQuote ? 'hidden' : ''}`}>
+               <div className={`mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground ${isQuote ? 'hidden' : ''}`}>
                   <div className="flex items-center gap-1">
                     <Clock size={12} />
                     <span>{formatDate(item.created_at)}</span>
                   </div>
-                  {(isBig || isTall || isWide) && <span className="text-blue-400/80 group-hover:text-blue-400 flex items-center gap-1">Read <ArrowRight size={10} /></span>}
+                  {(isBig || isTall || isWide) && <span className="text-primary/80 group-hover:text-primary flex items-center gap-1">Read <ArrowRight size={10} /></span>}
                </div>
             </motion.div>
           );
@@ -232,29 +267,34 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSelectedId(null)}
-              className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-8"
+              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 sm:p-8"
             />
             <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8 pointer-events-none">
               {items.filter(item => item.id === selectedId).map(selectedItem => (
                 <motion.div
                   layoutId={`card-${selectedItem.id}`}
                   key={selectedItem.id}
-                  className="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl relative pointer-events-auto flex flex-col max-h-[90vh]"
+                  className={`w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl relative pointer-events-auto flex flex-col max-h-[90vh] border ${getCardColor(selectedItem.id)} bg-card`}
                 >
                   <div className="p-8 overflow-y-auto custom-scrollbar">
                     {/* Modal Header */}
                     <div className="flex items-center gap-3 mb-6">
-                      <div className={`p-2 rounded-lg bg-neutral-950/50 ${getSourceConfig(selectedItem.source_type).color}`}>
-                        {(() => {
+                      {(() => {
                           const Icon = getSourceConfig(selectedItem.source_type).icon;
-                          return <Icon size={20} />;
-                        })()}
-                      </div>
+                          if (!Icon) return null;
+                          return (
+                            <div className={`p-2 rounded-lg bg-muted ${getSourceConfig(selectedItem.source_type).color}`}>
+                              <Icon size={20} />
+                            </div>
+                          );
+                      })()}
                       <div>
-                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-500 block mb-1">
-                          {getSourceConfig(selectedItem.source_type).label}
-                        </span>
-                        <div className="flex items-center gap-2 text-xs text-neutral-600">
+                        {getSourceConfig(selectedItem.source_type).label && (
+                          <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block mb-1">
+                            {getSourceConfig(selectedItem.source_type).label}
+                          </span>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <Clock size={12} />
                           <span>{formatDate(selectedItem.created_at)}</span>
                         </div>
@@ -265,13 +305,13 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                     {selectedItem.title && (
                       <motion.h2 
                         layoutId={`title-${selectedItem.id}`}
-                        className="text-3xl font-bold text-neutral-100 mb-6 leading-tight"
+                        className="text-3xl font-bold text-foreground mb-6 leading-tight"
                       >
                         {selectedItem.title}
                       </motion.h2>
                     )}
                     
-                    <div className="prose prose-invert prose-lg max-w-none text-neutral-300">
+                    <div className="prose prose-invert dark:prose-invert prose-neutral max-w-none text-foreground/90">
                       <p className="whitespace-pre-line leading-relaxed">
                         {selectedItem.content}
                       </p>
@@ -372,23 +412,24 @@ export default function FeedPage() {
   if (!isAuthenticated) return null;
 
   return (
-    <div className="min-h-screen bg-black text-neutral-200 selection:bg-neutral-800 flex flex-col">
+    <div className="min-h-screen bg-background text-foreground selection:bg-neutral-200 dark:selection:bg-neutral-800 flex flex-col">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-xl border-b border-neutral-800 flex-shrink-0">
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-xl border-b border-border flex-shrink-0">
         <div className="w-full max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center">
-               <span className="text-black font-bold text-lg">N</span>
+            <div className="w-8 h-8 rounded-lg bg-foreground text-background flex items-center justify-center">
+               <span className="font-bold text-lg">N</span>
             </div>
-            <span className="font-semibold text-white tracking-tight hidden sm:inline-block">NewsFeed</span>
+            <span className="font-semibold tracking-tight hidden sm:inline-block">NewsFeed</span>
           </div>
 
           <div className="flex items-center gap-3">
-             <div className="hidden md:flex items-center gap-4 text-xs font-medium text-neutral-500 mr-4">
+             <div className="hidden md:flex items-center gap-4 text-xs font-medium text-muted-foreground mr-4">
                 <span>{items.length} items</span>
                 <span>{loading ? 'Updating...' : 'Live'}</span>
              </div>
-             <Button variant="ghost" size="sm" onClick={logout} className="text-neutral-500 hover:text-white h-8 w-8 p-0 rounded-full">
+             <ThemeToggle />
+             <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground h-8 w-8 p-0 rounded-full">
                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
                  {user?.username?.[0]?.toUpperCase()}
                </div>
@@ -407,7 +448,7 @@ export default function FeedPage() {
         
         {loading && items.length === 0 ? (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
           </div>
         ) : (
           <BentoGrid items={items} onArchive={handleArchive} />
