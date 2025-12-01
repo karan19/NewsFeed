@@ -3,6 +3,7 @@ import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -62,6 +63,64 @@ export class NewsFeedStack extends cdk.Stack {
       },
       projectionType: dynamodb.ProjectionType.ALL,
     });
+
+    // GSI for true Global Feed (across all types)
+    this.unifiedTable.addGlobalSecondaryIndex({
+      indexName: 'GSI3_Global_Feed',
+      partitionKey: {
+        name: 'gsi_global_pk',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
+    // Create Feed Reader Lambda
+    const feedReader = new lambdaNodejs.NodejsFunction(this, 'Feed_Reader', {
+      functionName: 'NewsFeed_Reader',
+      description: 'Reads the global newsfeed',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../src/lambdas/feed-reader/handler.ts'),
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
+        LOG_LEVEL: 'INFO',
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    this.unifiedTable.grantReadData(feedReader);
+
+    // Create API Gateway
+    const api = new apigateway.LambdaRestApi(this, 'NewsFeed_API', {
+      handler: feedReader,
+      proxy: false,
+      restApiName: 'NewsFeed API',
+      defaultCorsPreflightOptions: {
+        allowOrigins: apigateway.Cors.ALL_ORIGINS,
+        allowMethods: apigateway.Cors.ALL_METHODS,
+      },
+    });
+
+    const feedResource = api.root.addResource('feed');
+    feedResource.addMethod('GET'); // GET /feed
+
+    // Outputs
+    new cdk.CfnOutput(this, 'Api_Url', {
+      value: api.url,
+      description: 'API Gateway URL',
+      exportName: 'NewsFeed-Api-Url',
+    });
+
 
     // Create stream enabler and processor for each source table
     for (const tableConfig of sourceTables) {

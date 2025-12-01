@@ -54,6 +54,7 @@ export function buildUnifiedRecord(
     updated_at: transformer.getUpdatedAt(sourceRecord) || now,
     event_type: eventType,
     is_deleted: false,
+    gsi_global_pk: 'GLOBAL',
   };
 }
 

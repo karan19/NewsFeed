@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/components/providers/auth-provider';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
   StickyNote, 
@@ -21,153 +21,22 @@ import {
 // Types
 type RecordType = 'note' | 'thought' | 'contact' | 'project' | 'capture' | 'workboard' | 'llm-conversation' | 'mcp-conversation';
 
+interface UnifiedRecord {
+  PK: string;
+  source_type: string;
+  record_type: string;
+  content: any; // Using any to be flexible with the dynamic content structure
+  created_at: string;
+}
+
 interface FeedItemData {
   id: string;
   source_type: string;
-  record_type: RecordType;
+  record_type: string; // broadened from RecordType to string to accept backend types
   title: string | null;
   content: string;
   created_at: string;
 }
-
-// Extended Placeholder Data for Dense Grid Demo
-const PLACEHOLDER_ITEMS: FeedItemData[] = [
-  // BIG (2x2)
-  {
-    id: '1',
-    source_type: 'projects',
-    record_type: 'project',
-    title: 'Q1 Roadmap Planning',
-    content: 'Discussed project roadmap and next steps for Q1. Key priorities: finish the data pipeline, build the search feature, and launch the mobile app. We need to allocate resources for the backend migration and ensure we have enough coverage for the new features. The mobile app should support offline mode and sync when online. We also discussed the need for a design system update to unify the web and mobile experiences. The timeline is tight, but if we parallelize the backend and frontend work, we might make the March deadline.',
-    created_at: new Date(Date.now() - 3600000).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '2',
-    source_type: 'thoughts',
-    record_type: 'thought',
-    title: null,
-    content: 'Simplicity is the ultimate sophistication.', 
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-  },
-  // WIDE (2x1)
-  {
-    id: '3',
-    source_type: 'capture',
-    record_type: 'capture',
-    title: 'The Future of PKM',
-    content: 'Key insight: tools matter less than habits. The PARA method suggests organizing by Projects, Areas, Resources, and Archives. This flat hierarchy keeps things actionable.',
-    created_at: new Date(Date.now() - 86400000 * 1.5).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '4',
-    source_type: 'notes',
-    record_type: 'note',
-    title: 'Grocery List',
-    content: 'Milk, Eggs, Bread, Coffee beans, Avocados.',
-    created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-  },
-  // TALL (1x2) - List style
-  {
-    id: '5',
-    source_type: 'workboard',
-    record_type: 'workboard',
-    title: 'Sprint Tasks',
-    content: '1. Fix login bug\n2. Update API docs\n3. Review PR #42\n4. Deploy to staging\n5. Run integration tests\n6. Email stakeholders\n7. Update Jira tickets\n8. Plan next sprint retro',
-    created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '6',
-    source_type: 'thoughts',
-    record_type: 'thought',
-    title: null,
-    content: 'Embeddings > Keywords. Semantic search is the future.',
-    created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-  },
-  // WIDE (2x1)
-  {
-    id: '7',
-    source_type: 'projects',
-    record_type: 'project',
-    title: 'Mobile App MVP',
-    content: 'Starting work on the mobile companion app. Phase 1 is read-only feed. Phase 2 adds capture. Phase 3 adds offline sync. Using React Native for cross-platform support.',
-    created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '8',
-    source_type: 'llm-council',
-    record_type: 'llm-conversation',
-    title: 'Architecture Review',
-    content: 'DynamoDB Streams vs EventBridge: Streams chosen for ordering guarantees.',
-    created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '9',
-    source_type: 'contacts',
-    record_type: 'contact',
-    title: 'Coffee with Sarah',
-    content: 'Discussed AI trends and new startup ideas.',
-    created_at: new Date(Date.now() - 86400000 * 7).toISOString(),
-  },
-  // BIG (2x2)
-  {
-    id: '10',
-    source_type: 'capture',
-    record_type: 'capture',
-    title: 'System Design: NewsFeed',
-    content: 'The core challenge is consolidating heterogeneous data schemas. We decided on a "Unified Record" pattern where every source item is transformed into a standard JSON structure. The Partition Key is the TABLE_NAME and the Sort Key is the RECORD_ID. This allows us to query by source easily. Global Secondary Indexes (GSIs) are used for querying by date across all sources, effectively creating a time-series view of personal data.',
-    created_at: new Date(Date.now() - 86400000 * 8).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '11',
-    source_type: 'thoughts',
-    record_type: 'thought',
-    title: null,
-    content: 'Design is intelligence made visible.',
-    created_at: new Date(Date.now() - 86400000 * 9).toISOString(),
-  },
-  // TALL (1x2)
-  {
-    id: '12',
-    source_type: 'notes',
-    record_type: 'note',
-    title: 'Books to Read',
-    content: '- The Design of Everyday Things\n- Clean Code\n- Zero to One\n- Atomic Habits\n- Deep Work\n- Thinking, Fast and Slow\n- The Pragmatic Programmer',
-    created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '13',
-    source_type: 'workboard',
-    record_type: 'workboard',
-    title: 'Backend Refactor',
-    content: 'Migrate to monorepo structure complete.',
-    created_at: new Date(Date.now() - 86400000 * 11).toISOString(),
-  },
-  // WIDE (2x1)
-  {
-    id: '14',
-    source_type: 'projects',
-    record_type: 'project',
-    title: 'Search Service',
-    content: 'Implementing OpenSearch for full-text capabilities. Need to set up the ingestion lambda to stream updates from the unified table to the search index.',
-    created_at: new Date(Date.now() - 86400000 * 12).toISOString(),
-  },
-  // SMALL (1x1)
-  {
-    id: '15',
-    source_type: 'thoughts',
-    record_type: 'thought',
-    title: null,
-    content: 'Constraint breeds creativity.',
-    created_at: new Date(Date.now() - 86400000 * 13).toISOString(),
-  }
-];
 
 // Configuration
 const SOURCE_CONFIG: Record<string, { icon: any, color: string, label: string }> = {
@@ -191,14 +60,51 @@ function formatDate(dateString: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
 }
 
+function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
+  const contentObj = record.content || {};
+  
+  // Extract content based on record type or common fields
+  let content = '';
+  let title = contentObj.title || contentObj.contactName || null; // contactName for contacts
+
+  if (typeof contentObj.content === 'string') {
+    content = contentObj.content;
+  } else if (contentObj.description) {
+    content = contentObj.description;
+  } else if (record.source_type === 'contacts') {
+     content = `${contentObj.role || ''} ${contentObj.workingStyle ? `• ${contentObj.workingStyle}` : ''}`;
+  } else {
+    // Fallback for unknown structures
+    content = JSON.stringify(contentObj);
+  }
+
+  return {
+    id: record.PK,
+    source_type: record.source_type,
+    record_type: record.record_type.toLowerCase(), // Normalize to lowercase match frontend
+    title,
+    content,
+    created_at: record.created_at,
+  };
+}
+
 // Components
 function BentoGrid({ items }: { items: FeedItemData[] }) {
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-neutral-500">
+        <p>No items found in your feed.</p>
+        <p className="text-sm mt-2">Try running the backfill script to populate data.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-[180px] grid-flow-dense pb-20">
       {items.map((item) => {
-        const length = item.content.length;
+        const length = item.content?.length || 0;
         const hasTitle = !!item.title;
-        const isList = item.content.includes('\n');
+        const isList = item.content?.includes('\n');
         
         // Smart Sizing Algorithm
         let colSpan = 'col-span-1';
@@ -285,16 +191,56 @@ function BentoGrid({ items }: { items: FeedItemData[] }) {
 }
 
 export default function FeedPage() {
-  const { user, isLoading, isAuthenticated, logout } = useAuth();
+  const { user, isLoading: authLoading, isAuthenticated, logout, getAccessToken } = useAuth();
   const router = useRouter();
+  const [items, setItems] = useState<FeedItemData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router]);
 
-  if (isLoading) return null;
+  useEffect(() => {
+    async function fetchFeed() {
+      if (!isAuthenticated) return;
+      
+      try {
+        setLoading(true);
+        const apiUrl = process.env.NEXT_PUBLIC_NEWSFEED_API_URL;
+        
+        if (!apiUrl) {
+          console.warn('NEXT_PUBLIC_NEWSFEED_API_URL not set, using placeholder data');
+          setLoading(false);
+          return;
+        }
+
+        // TODO: Add Authorization header once API Gateway is secured
+        // const token = await getAccessToken();
+        
+        const response = await fetch(`${apiUrl}/feed?limit=50`);
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch feed');
+        }
+
+        const data = await response.json();
+        const mappedItems = data.items.map(mapRecordToFeedItem);
+        setItems(mappedItems);
+      } catch (err) {
+        console.error('Error fetching feed:', err);
+        setError('Failed to load feed');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchFeed();
+  }, [isAuthenticated, getAccessToken]);
+
+  if (authLoading) return null;
   if (!isAuthenticated) return null;
 
   return (
@@ -311,8 +257,8 @@ export default function FeedPage() {
 
           <div className="flex items-center gap-3">
              <div className="hidden md:flex items-center gap-4 text-xs font-medium text-neutral-500 mr-4">
-                <span>{PLACEHOLDER_ITEMS.length} items</span>
-                <span>Last updated just now</span>
+                <span>{items.length} items</span>
+                <span>{loading ? 'Updating...' : 'Live'}</span>
              </div>
              <Button variant="ghost" size="sm" onClick={logout} className="text-neutral-500 hover:text-white h-8 w-8 p-0 rounded-full">
                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
@@ -325,12 +271,26 @@ export default function FeedPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto w-full px-4 py-8">
-        <BentoGrid items={PLACEHOLDER_ITEMS} />
+        {error && (
+          <div className="mb-8 p-4 bg-red-900/20 border border-red-900/50 rounded-lg text-red-400 text-sm">
+            {error}
+          </div>
+        )}
         
-        {/* Load More Button */}
-        <div className="flex justify-center">
-          <Button variant="outline" className="border-neutral-800 text-neutral-400 hover:text-white bg-neutral-900/50">Load more items</Button>
-        </div>
+        {loading && items.length === 0 ? (
+          <div className="flex items-center justify-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
+          </div>
+        ) : (
+          <BentoGrid items={items} />
+        )}
+        
+        {/* Load More Button - Only show if we have items */}
+        {items.length > 0 && (
+          <div className="flex justify-center mt-8">
+            <Button variant="outline" className="border-neutral-800 text-neutral-400 hover:text-white bg-neutral-900/50">Load more items</Button>
+          </div>
+        )}
       </main>
     </div>
   );

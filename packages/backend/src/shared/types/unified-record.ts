@@ -34,6 +34,9 @@ export interface UnifiedRecord {
   
   /** Soft delete flag */
   is_deleted: boolean;
+
+  /** Global Feed Partition Key (Always 'GLOBAL') */
+  gsi_global_pk: string;
 }
 
 /**
