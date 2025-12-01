@@ -75,6 +75,7 @@ function buildUnifiedRecord(
     event_type: eventType,
     is_deleted: eventType === 'REMOVE',
     gsi_global_pk: 'GLOBAL',
+    is_archived: false,
   };
 }
 
