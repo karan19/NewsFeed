@@ -66,6 +66,7 @@ function buildUnifiedRecord(
     updated_at: (sourceRecord.updatedAt as string) || now,
     event_type: eventType,
     is_deleted: eventType === 'REMOVE',
+    gsi_global_pk: 'GLOBAL',
   };
 }
 

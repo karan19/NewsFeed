@@ -71,6 +71,7 @@ function buildUnifiedRecord(
     updated_at: sourceRecord.lastActiveAt || now,
     event_type: eventType,
     is_deleted: eventType === 'REMOVE',
+    gsi_global_pk: 'GLOBAL',
   };
 }
 
