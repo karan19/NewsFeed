@@ -56,8 +56,18 @@ function getSourceConfig(type: string) {
 }
 
 function formatDate(dateString: string) {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  try {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return '';
+    }
+    return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(date);
+  } catch (e) {
+    console.warn(`Invalid date: ${dateString}`, e);
+    return '';
+  }
 }
 
 function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
@@ -78,10 +88,13 @@ function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
     content = JSON.stringify(contentObj);
   }
 
+  // Ensure record type is a string
+  const recordType = typeof record.record_type === 'string' ? record.record_type.toLowerCase() : 'unknown';
+
   return {
     id: record.PK,
     source_type: record.source_type,
-    record_type: record.record_type.toLowerCase(), // Normalize to lowercase match frontend
+    record_type: recordType,
     title,
     content,
     created_at: record.created_at,
