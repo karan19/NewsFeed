@@ -18,8 +18,10 @@ export const handler = async (event: any) => {
       TableName: TABLE_NAME,
       IndexName: INDEX_NAME,
       KeyConditionExpression: 'gsi_global_pk = :pk',
+      FilterExpression: 'is_archived <> :true',
       ExpressionAttributeValues: {
         ':pk': 'GLOBAL',
+        ':true': true,
       },
       ScanIndexForward: false, // Newest first
       Limit: limit,

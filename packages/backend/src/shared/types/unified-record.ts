@@ -37,6 +37,9 @@ export interface UnifiedRecord {
 
   /** Global Feed Partition Key (Always 'GLOBAL') */
   gsi_global_pk: string;
+
+  /** Archive flag */
+  is_archived: boolean;
 }
 
 /**

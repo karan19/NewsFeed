@@ -55,6 +55,7 @@ export function buildUnifiedRecord(
     event_type: eventType,
     is_deleted: false,
     gsi_global_pk: 'GLOBAL',
+    is_archived: false,
   };
 }
 

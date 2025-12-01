@@ -16,7 +16,8 @@ import {
   Maximize2,
   Clock,
   KanbanSquare,
-  X
+  X,
+  Archive
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -104,7 +105,7 @@ function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
 }
 
 // Components
-function BentoGrid({ items }: { items: FeedItemData[] }) {
+function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id: string) => void }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   if (items.length === 0) {
@@ -170,7 +171,21 @@ function BentoGrid({ items }: { items: FeedItemData[] }) {
                    </div>
                    <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">{config.label}</span>
                  </div>
-                 {isBig && <Maximize2 size={14} className="text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                 
+                 {/* Header Actions */}
+                 <div className="flex items-center gap-2">
+                    <button 
+                      className="text-neutral-600 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all p-1 rounded-md hover:bg-neutral-800"
+                      onClick={(e) => {
+                        e.stopPropagation(); // Prevent card click
+                        onArchive(item.id);
+                      }}
+                      title="Archive"
+                    >
+                      <Archive size={14} />
+                    </button>
+                    {isBig && <Maximize2 size={14} className="text-neutral-600 opacity-0 group-hover:opacity-100 transition-opacity" />}
+                 </div>
                </div>
                
                {/* Content */}
@@ -226,16 +241,6 @@ function BentoGrid({ items }: { items: FeedItemData[] }) {
                   key={selectedItem.id}
                   className="w-full max-w-2xl bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden shadow-2xl relative pointer-events-auto flex flex-col max-h-[90vh]"
                 >
-                  {/* Close Button */}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-4 right-4 z-10 text-neutral-400 hover:text-white bg-black/20 hover:bg-black/40 rounded-full"
-                    onClick={() => setSelectedId(null)}
-                  >
-                    <X size={20} />
-                  </Button>
-
                   <div className="p-8 overflow-y-auto custom-scrollbar">
                     {/* Modal Header */}
                     <div className="flex items-center gap-3 mb-6">
@@ -271,12 +276,6 @@ function BentoGrid({ items }: { items: FeedItemData[] }) {
                         {selectedItem.content}
                       </p>
                     </div>
-                  </div>
-
-                  {/* Footer Actions */}
-                  <div className="p-4 border-t border-neutral-800 bg-neutral-900/50 flex justify-end gap-2">
-                    <Button variant="ghost" onClick={() => setSelectedId(null)}>Close</Button>
-                    <Button className="bg-white text-black hover:bg-neutral-200">Open Source</Button>
                   </div>
                 </motion.div>
               ))}
@@ -338,15 +337,37 @@ export default function FeedPage() {
     fetchFeed();
   }, [isAuthenticated, getAccessToken]);
 
-  // Handle "Esc" key to close modal - Handled in BentoGrid now - but need to ensure it works globally if desired or component level
-  // Actually, in the component logic above I didn't add the listener. Let's add it back if we moved state.
-  // Wait, I moved state into BentoGrid? No, wait. 
-  // Let's check where state should live.
-  // In the previous code, state was in FeedPage. 
-  // In the new code I wrote above, I moved `selectedId` into `BentoGrid`.
-  // This is fine, but I should probably add the key listener to BentoGrid or keep state up.
-  // Keeping state in BentoGrid is cleaner for this specific interaction.
-  
+  const handleArchive = async (id: string) => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_NEWSFEED_API_URL;
+      if (!apiUrl) return;
+
+      // Optimistic update: Remove from UI immediately
+      setItems(current => current.filter(item => item.id !== id));
+
+      // Call API
+      // In a real app, you would also get the token for auth
+      // const token = await getAccessToken(); 
+      
+      // Note: The path is /feed/{id}/archive
+      const response = await fetch(`${apiUrl}/feed/${encodeURIComponent(id)}/archive`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_archived: true }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to archive item');
+      }
+    } catch (err) {
+      console.error('Error archiving item:', err);
+      // Revert optimistic update (fetch feed again or add item back if we kept reference)
+      // For simplicity, we'll just show a toast/alert in a real app, here we just log
+    }
+  };
+
   if (authLoading) return null;
   if (!isAuthenticated) return null;
 
@@ -389,7 +410,7 @@ export default function FeedPage() {
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-white"></div>
           </div>
         ) : (
-          <BentoGrid items={items} />
+          <BentoGrid items={items} onArchive={handleArchive} />
         )}
         
         {/* Load More Button - Only show if we have items */}

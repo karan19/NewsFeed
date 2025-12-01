@@ -100,6 +100,28 @@ export class NewsFeedStack extends cdk.Stack {
 
     this.unifiedTable.grantReadData(feedReader);
 
+    // Create Archive Item Lambda
+    const archiveItem = new lambdaNodejs.NodejsFunction(this, 'Archive_Item', {
+      functionName: 'NewsFeed_Archive_Item',
+      description: 'Archives a newsfeed item',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../src/lambdas/archive-item/handler.ts'),
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
+        LOG_LEVEL: 'INFO',
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    this.unifiedTable.grantReadWriteData(archiveItem);
+
     // Create API Gateway
     const api = new apigateway.LambdaRestApi(this, 'NewsFeed_API', {
       handler: feedReader,
@@ -113,6 +135,9 @@ export class NewsFeedStack extends cdk.Stack {
 
     const feedResource = api.root.addResource('feed');
     feedResource.addMethod('GET'); // GET /feed
+
+    const archiveResource = feedResource.addResource('{id}').addResource('archive');
+    archiveResource.addMethod('POST', new apigateway.LambdaIntegration(archiveItem)); // POST /feed/{id}/archive
 
     // Outputs
     new cdk.CfnOutput(this, 'Api_Url', {
