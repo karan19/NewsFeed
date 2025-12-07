@@ -1,83 +1,9 @@
 import { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
-import { UnifiedRecord, StreamEventType } from '../../shared/types';
+import { StreamEventType } from '../../shared/types';
 import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
-
-/**
- * Configuration for Capture table
- */
-const SOURCE_TABLE_NAME = 'Capture';
-const SOURCE_TYPE = 'external';
-const RECORD_TYPE = 'CAPTURE';
-
-/**
- * Source record interface for Capture table
- */
-interface CaptureSourceRecord {
-  pk: string;
-  sk: string;
-  id?: string;
-  title?: string;
-  content?: string;
-  source?: string;
-  sourceUrl?: string;
-  primaryTag?: string;
-  capturedAt?: string;
-  contentHash?: string;
-  tableName?: string;
-}
-
-/**
- * Extract the unique identifier from a capture record
- */
-function extractId(record: CaptureSourceRecord): string {
-  if (!record.pk || !record.sk) {
-    throw new Error('Missing pk or sk in capture record');
-  }
-  return `${record.pk}#${record.sk}`;
-}
-
-/**
- * Transform capture record to unified content format
- * Synced fields: title, content, source, sourceUrl
- */
-function transformContent(record: CaptureSourceRecord): Record<string, unknown> {
-  return {
-    title: record.title || '',
-    content: record.content || '',
-    source: record.source || '',
-    sourceUrl: record.sourceUrl || '',
-  };
-}
-
-/**
- * Build a UnifiedRecord from a capture source record
- */
-function buildUnifiedRecord(
-  sourceRecord: CaptureSourceRecord,
-  eventType: StreamEventType,
-  existingCreatedAt?: string
-): UnifiedRecord {
-  const originalId = extractId(sourceRecord);
-  const now = new Date().toISOString();
-
-  return {
-    PK: `${SOURCE_TABLE_NAME}#${originalId}`,
-    SK: 'RECORD',
-    source_type: SOURCE_TYPE,
-    table_name: SOURCE_TABLE_NAME,
-    original_id: originalId,
-    record_type: RECORD_TYPE,
-    content: transformContent(sourceRecord),
-    created_at: existingCreatedAt || sourceRecord.capturedAt || now,
-    updated_at: now,
-    event_type: eventType,
-    is_deleted: eventType === 'REMOVE',
-    gsi_global_pk: 'GLOBAL',
-    is_archived: false,
-  };
-}
+import { captureTransformer, buildUnifiedRecord } from '../../shared/transformers';
 
 /**
  * Process a single DynamoDB Stream record
@@ -89,7 +15,7 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
   logger.setContext({
     correlationId: eventId,
     eventType,
-    tableName: SOURCE_TABLE_NAME,
+    tableName: captureTransformer.sourceTableName,
   });
 
   logger.info('Processing capture stream record');
@@ -103,10 +29,10 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
 
       const keys = unmarshall(
         record.dynamodb.Keys as Record<string, AttributeValue>
-      ) as CaptureSourceRecord;
+      );
 
-      const originalId = extractId(keys);
-      const pk = `${SOURCE_TABLE_NAME}#${originalId}`;
+      const originalId = captureTransformer.extractId(keys);
+      const pk = `${captureTransformer.sourceTableName}#${originalId}`;
       const sk = 'RECORD';
 
       await hardDeleteUnifiedRecord(pk, sk);
@@ -118,22 +44,14 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
 
       const newImage = unmarshall(
         record.dynamodb.NewImage as Record<string, AttributeValue>
-      ) as CaptureSourceRecord;
+      );
 
-      let existingCreatedAt: string | undefined;
-      if (eventType === 'MODIFY' && record.dynamodb?.OldImage) {
-        const oldImage = unmarshall(
-          record.dynamodb.OldImage as Record<string, AttributeValue>
-        ) as CaptureSourceRecord;
-        existingCreatedAt = oldImage.capturedAt;
-      }
-
-      const unifiedRecord = buildUnifiedRecord(newImage, eventType, existingCreatedAt);
+      const unifiedRecord = buildUnifiedRecord(captureTransformer, newImage, eventType);
 
       logger.info('Syncing capture to unified table', {
         recordId: unifiedRecord.original_id,
-        title: (unifiedRecord.content as Record<string, unknown>).title,
-        source: (unifiedRecord.content as Record<string, unknown>).source,
+        title: (unifiedRecord.content as Record<string, unknown>).captureTitle,
+        source: (unifiedRecord.content as Record<string, unknown>).captureSource,
       });
 
       await putUnifiedRecord(unifiedRecord);

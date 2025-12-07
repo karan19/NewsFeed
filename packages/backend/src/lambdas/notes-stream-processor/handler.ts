@@ -1,82 +1,9 @@
 import { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
-import { UnifiedRecord, StreamEventType } from '../../shared/types';
+import { StreamEventType } from '../../shared/types';
 import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
-
-/**
- * Configuration for nexusnote-notes-production table
- */
-const SOURCE_TABLE_NAME = 'nexusnote-notes-production';
-const SOURCE_TYPE = 'personal';
-const RECORD_TYPE = 'NOTE';
-
-/**
- * Source record interface for notes table
- */
-interface NotesSourceRecord {
-  userId: string;
-  noteId: string;
-  title?: string;
-  content?: string;
-  status?: string;
-  statusUpdatedAt?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  pinned?: boolean;
-  manualTags?: string[];
-  aiTags?: string[];
-}
-
-/**
- * Extract the unique identifier from a notes record
- * Combines userId and noteId for uniqueness
- */
-function extractId(record: NotesSourceRecord): string {
-  if (!record.userId || !record.noteId) {
-    throw new Error('Missing userId or noteId in notes record');
-  }
-  return `${record.userId}#${record.noteId}`;
-}
-
-/**
- * Transform notes record to unified content format
- * Only includes: title, content
- */
-function transformContent(record: NotesSourceRecord): Record<string, unknown> {
-  return {
-    title: record.title || '',
-    content: record.content || '',
-  };
-}
-
-/**
- * Build a UnifiedRecord from a notes source record
- */
-function buildUnifiedRecord(
-  sourceRecord: NotesSourceRecord,
-  eventType: StreamEventType,
-  existingCreatedAt?: string
-): UnifiedRecord {
-  const originalId = extractId(sourceRecord);
-  const now = new Date().toISOString();
-
-  return {
-    PK: `${SOURCE_TABLE_NAME}#${originalId}`,
-    SK: 'RECORD',
-    source_type: SOURCE_TYPE,
-    table_name: SOURCE_TABLE_NAME,
-    original_id: originalId,
-    record_type: RECORD_TYPE,
-    content: transformContent(sourceRecord),
-    created_at: existingCreatedAt || sourceRecord.createdAt || now,
-    updated_at: sourceRecord.updatedAt || now,
-    event_type: eventType,
-    is_deleted: eventType === 'REMOVE',
-    gsi_global_pk: 'GLOBAL',
-    is_archived: false,
-  };
-}
+import { notesTransformer, buildUnifiedRecord } from '../../shared/transformers';
 
 /**
  * Process a single DynamoDB Stream record
@@ -88,7 +15,7 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
   logger.setContext({
     correlationId: eventId,
     eventType,
-    tableName: SOURCE_TABLE_NAME,
+    tableName: notesTransformer.sourceTableName,
   });
 
   logger.info('Processing notes stream record');
@@ -103,10 +30,27 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
 
       const keys = unmarshall(
         record.dynamodb.Keys as Record<string, AttributeValue>
-      ) as NotesSourceRecord;
+      );
 
-      const originalId = extractId(keys);
-      const pk = `${SOURCE_TABLE_NAME}#${originalId}`;
+      // We need to construct a partial record that satisfies what extractId needs
+      // notesTransformer.extractId expects { userId, noteId }
+      // These should be present in the keys for this table (PK=USER#<userId>, SK=NOTE#<noteId>) but the transformer expects direct props
+      // Wait, the notes transformer extractId expects:
+      // const userId = record['userId'] as string;
+      // const noteId = record['noteId'] as string;
+      // BUT the table likely uses PK/SK or GSI keys. 
+      // Let's check the original handler's extractId:
+      // function extractId(record: NotesSourceRecord): string {
+      //   if (!record.userId || !record.noteId) { ... }
+      //   return `${record.userId}#${record.noteId}`;
+      // }
+      // The keys come from DynamoDB. If the table is single-table design, keys are PK/SK.
+      // If it's a dedicated table with userId partition key and noteId sort key, then those are the keys.
+      // The original interface said: interface NotesSourceRecord { userId: string; noteId: string; ... }
+      // So the Keys object will have userId and noteId.
+
+      const originalId = notesTransformer.extractId(keys);
+      const pk = `${notesTransformer.sourceTableName}#${originalId}`;
       const sk = 'RECORD';
 
       await hardDeleteUnifiedRecord(pk, sk);
@@ -119,22 +63,13 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
 
       const newImage = unmarshall(
         record.dynamodb.NewImage as Record<string, AttributeValue>
-      ) as NotesSourceRecord;
+      );
 
-      // For MODIFY, try to preserve original created_at from unified table
-      let existingCreatedAt: string | undefined;
-      if (eventType === 'MODIFY' && record.dynamodb?.OldImage) {
-        const oldImage = unmarshall(
-          record.dynamodb.OldImage as Record<string, AttributeValue>
-        ) as NotesSourceRecord;
-        existingCreatedAt = oldImage.createdAt;
-      }
-
-      const unifiedRecord = buildUnifiedRecord(newImage, eventType, existingCreatedAt);
+      const unifiedRecord = buildUnifiedRecord(notesTransformer, newImage, eventType);
 
       logger.info('Syncing note to unified table', {
         recordId: unifiedRecord.original_id,
-        title: (unifiedRecord.content as Record<string, unknown>).title,
+        title: (unifiedRecord.content as Record<string, unknown>).noteTitle,
       });
 
       await putUnifiedRecord(unifiedRecord);

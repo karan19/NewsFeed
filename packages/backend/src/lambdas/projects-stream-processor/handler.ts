@@ -1,80 +1,9 @@
 import { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
-import { UnifiedRecord, StreamEventType } from '../../shared/types';
+import { StreamEventType } from '../../shared/types';
 import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
-
-/**
- * Configuration for nexusnote-implementation-projects-production table
- */
-const SOURCE_TABLE_NAME = 'nexusnote-implementation-projects-production';
-const SOURCE_TYPE = 'personal';
-const RECORD_TYPE = 'PROJECT';
-
-/**
- * Source record interface for projects table
- */
-interface ProjectsSourceRecord {
-  userId: string;
-  projectId: string;
-  title?: string;
-  description?: string;
-  notes?: string;
-  status?: string;
-  priorityIndex?: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-/**
- * Extract the unique identifier from a projects record
- */
-function extractId(record: ProjectsSourceRecord): string {
-  if (!record.userId || !record.projectId) {
-    throw new Error('Missing userId or projectId in projects record');
-  }
-  return `${record.userId}#${record.projectId}`;
-}
-
-/**
- * Transform projects record to unified content format
- * Synced fields: title, description, status
- */
-function transformContent(record: ProjectsSourceRecord): Record<string, unknown> {
-  return {
-    title: record.title || '',
-    description: record.description || '',
-    status: record.status || '',
-  };
-}
-
-/**
- * Build a UnifiedRecord from a projects source record
- */
-function buildUnifiedRecord(
-  sourceRecord: ProjectsSourceRecord,
-  eventType: StreamEventType,
-  existingCreatedAt?: string
-): UnifiedRecord {
-  const originalId = extractId(sourceRecord);
-  const now = new Date().toISOString();
-
-  return {
-    PK: `${SOURCE_TABLE_NAME}#${originalId}`,
-    SK: 'RECORD',
-    source_type: SOURCE_TYPE,
-    table_name: SOURCE_TABLE_NAME,
-    original_id: originalId,
-    record_type: RECORD_TYPE,
-    content: transformContent(sourceRecord),
-    created_at: existingCreatedAt || sourceRecord.createdAt || now,
-    updated_at: sourceRecord.updatedAt || now,
-    event_type: eventType,
-    is_deleted: eventType === 'REMOVE',
-    gsi_global_pk: 'GLOBAL',
-    is_archived: false,
-  };
-}
+import { projectsTransformer, buildUnifiedRecord } from '../../shared/transformers';
 
 /**
  * Process a single DynamoDB Stream record
@@ -86,7 +15,7 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
   logger.setContext({
     correlationId: eventId,
     eventType,
-    tableName: SOURCE_TABLE_NAME,
+    tableName: projectsTransformer.sourceTableName,
   });
 
   logger.info('Processing projects stream record');
@@ -100,10 +29,13 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
 
       const keys = unmarshall(
         record.dynamodb.Keys as Record<string, AttributeValue>
-      ) as ProjectsSourceRecord;
+      );
 
-      const originalId = extractId(keys);
-      const pk = `${SOURCE_TABLE_NAME}#${originalId}`;
+      // We need to construct a partial record that satisfies what extractId needs
+      // projectsTransformer.extractId expects { userId, projectId }
+      // These should be present in the keys for this table
+      const originalId = projectsTransformer.extractId(keys);
+      const pk = `${projectsTransformer.sourceTableName}#${originalId}`;
       const sk = 'RECORD';
 
       await hardDeleteUnifiedRecord(pk, sk);
@@ -115,21 +47,13 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
 
       const newImage = unmarshall(
         record.dynamodb.NewImage as Record<string, AttributeValue>
-      ) as ProjectsSourceRecord;
+      );
 
-      let existingCreatedAt: string | undefined;
-      if (eventType === 'MODIFY' && record.dynamodb?.OldImage) {
-        const oldImage = unmarshall(
-          record.dynamodb.OldImage as Record<string, AttributeValue>
-        ) as ProjectsSourceRecord;
-        existingCreatedAt = oldImage.createdAt;
-      }
-
-      const unifiedRecord = buildUnifiedRecord(newImage, eventType, existingCreatedAt);
+      const unifiedRecord = buildUnifiedRecord(projectsTransformer, newImage, eventType);
 
       logger.info('Syncing project to unified table', {
         recordId: unifiedRecord.original_id,
-        title: (unifiedRecord.content as Record<string, unknown>).title,
+        title: (unifiedRecord.content as Record<string, unknown>).projectTitle,
       });
 
       await putUnifiedRecord(unifiedRecord);
