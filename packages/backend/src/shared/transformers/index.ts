@@ -81,9 +81,9 @@ export const notesTransformer: RecordTransformer = {
 
   transformContent(record) {
     return {
-      title: record['title'] || '',
-      content: record['content'] || '',
-      aiTags: record['aiTags'] || '',
+      noteTitle: record['title'] || '',
+      noteContent: record['content'] || '',
+      noteAiTags: record['aiTags'] || '',
     };
   },
 
@@ -110,9 +110,9 @@ export const contactsTransformer: RecordTransformer = {
   transformContent(record) {
     return {
       contactName: record['contactName'] || '',
-      role: record['role'] || '',
-      workingStyle: record['workingStyle'] || '',
-      nextInteraction: record['nextInteraction'] || '',
+      contactRole: record['role'] || '',
+      contactWorkingStyle: record['workingStyle'] || '',
+      contactNextInteraction: record['nextInteraction'] || '',
     };
   },
 
@@ -145,8 +145,8 @@ export const thoughtsTransformer: RecordTransformer = {
 
   transformContent(record) {
     return {
-      content: record['content'] || '',
-      tagName: record['tagName'] || '',
+      thoughtContent: record['content'] || '',
+      thoughtTag: record['tagName'] || '',
     };
   },
 
@@ -172,10 +172,10 @@ export const projectsTransformer: RecordTransformer = {
 
   transformContent(record) {
     return {
-      title: record['title'] || '',
-      description: record['description'] || '',
-      status: record['status'] || '',
-      notes: record['notes'] || '',
+      projectTitle: record['title'] || '',
+      projectDescription: record['description'] || '',
+      projectStatus: record['status'] || '',
+      projectNotes: record['notes'] || '',
     };
   },
 
@@ -202,11 +202,11 @@ export const captureTransformer: RecordTransformer = {
 
   transformContent(record) {
     return {
-      title: record['title'] || '',
-      content: record['content'] || '',
-      source: record['source'] || '',
-      sourceUrl: record['sourceUrl'] || '',
-      url: record['url'] || '',
+      captureTitle: record['title'] || '',
+      captureContent: record['content'] || '',
+      captureSource: record['source'] || '',
+      captureSourceUrl: record['sourceUrl'] || '',
+      captureUrl: record['url'] || '',
     };
   },
 
@@ -249,8 +249,8 @@ export const llmCouncilTransformer: RecordTransformer = {
     }
 
     return {
-      id: record['id'] || '',
-      title: record['title'] || '', // Keep title if useful
+      conversationId: record['id'] || '',
+      conversationTitle: record['title'] || '', // Keep title if useful
       userQuery,
       councilResponse,
     };
@@ -277,8 +277,8 @@ export const soliloquiesTransformer: RecordTransformer = {
 
   transformContent(record) {
     return {
-      content: record['normalizedContent'] || '',
-      duration: record['durationSeconds'] || 0,
+      voiceNoteTranscript: record['normalizedContent'] || '',
+      voiceNoteDurationSeconds: record['durationSeconds'] || 0,
     };
   },
 

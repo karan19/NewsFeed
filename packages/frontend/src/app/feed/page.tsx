@@ -120,30 +120,67 @@ function formatDate(dateString: string) {
 }
 
 function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
-  const contentObj = record.content || {};
+  const c = record.content || {};
 
-  // Extract content based on record type or common fields
+  // 1. Resolve Title
+  // Priority: semantic keys > generic keys
+  const title = c.noteTitle ||
+    c.projectTitle ||
+    c.contactName ||
+    c.captureTitle ||
+    c.conversationTitle ||
+    c.title ||
+    null;
+
+  // 2. Resolve Content
   let content = '';
-  let title = contentObj.title || contentObj.contactName || null; // contactName for contacts
 
-  if (typeof contentObj.content === 'string') {
-    content = contentObj.content;
-  } else if (contentObj.description) {
-    content = contentObj.description;
-  } else if (record.source_type === 'contacts') {
-    content = `${contentObj.role || ''} ${contentObj.workingStyle ? `• ${contentObj.workingStyle}` : ''}`;
-  } else if (record.record_type === 'LLM_CONVERSATION') {
-    // LLM Council specific mapping
-    const query = contentObj.userQuery;
-    const response = contentObj.councilResponse;
+  // Notes
+  if (c.noteContent) {
+    content = c.noteContent;
+  }
+  // Thoughts
+  else if (c.thoughtContent) {
+    content = c.thoughtContent;
+  }
+  // Projects
+  else if (c.projectDescription) {
+    content = c.projectDescription;
+  }
+  // Capture
+  else if (c.captureContent) {
+    content = c.captureContent;
+  }
+  // Soliloquies
+  else if (c.voiceNoteTranscript) {
+    content = c.voiceNoteTranscript;
+  }
+  // Contacts (Semantic)
+  else if (c.contactRole || c.contactWorkingStyle) {
+    content = `${c.contactRole || ''} ${c.contactWorkingStyle ? `• ${c.contactWorkingStyle}` : ''}`.trim();
+  }
+  // Contacts (Legacy/Fallback)
+  else if (record.source_type === 'contacts' && (c.role || c.workingStyle)) {
+    content = `${c.role || ''} ${c.workingStyle ? `• ${c.workingStyle}` : ''}`.trim();
+  }
+  // LLM Council
+  else if (record.record_type === 'LLM_CONVERSATION') {
+    const query = c.userQuery;
+    const response = c.councilResponse;
     if (query && response) {
       content = `Q: ${query}\n\nA: ${response}`;
     } else {
-      content = query || response || JSON.stringify(contentObj);
+      content = query || response || JSON.stringify(c);
     }
+  }
+  // Generic / Legacy Fallbacks
+  else if (typeof c.content === 'string') {
+    content = c.content;
+  } else if (c.description) {
+    content = c.description;
   } else {
     // Fallback for unknown structures
-    content = JSON.stringify(contentObj);
+    content = JSON.stringify(c);
   }
 
   // Ensure record type is a string
