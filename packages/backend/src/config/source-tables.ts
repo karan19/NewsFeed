@@ -18,22 +18,22 @@
 export interface SourceTableConfig {
   /** Unique identifier for this source (used in Lambda naming, e.g., 'notes', 'contacts') */
   processorId: string;
-  
+
   /** Full DynamoDB table name */
   tableName: string;
-  
+
   /** Source type for categorization in unified table ('personal' | 'external') */
   sourceType: 'personal' | 'external';
-  
+
   /** Record type for GSI queries in unified table (e.g., 'NOTE', 'CONTACT') */
   recordType: string;
-  
+
   /** Description for the Lambda function */
   description: string;
-  
+
   /** Fields to sync from source to unified table (for documentation) */
   syncedFields: string[];
-  
+
   /** Whether this table is enabled for syncing */
   enabled: boolean;
 }
@@ -81,15 +81,6 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
     recordType: 'PROJECT',
     description: 'Syncs implementation projects from NexusNote to unified newsfeed',
     syncedFields: ['title', 'description', 'status'],
-    enabled: true,
-  },
-  {
-    processorId: 'workboard',
-    tableName: 'nexusnote-tracking-workboard-production',
-    sourceType: 'personal',
-    recordType: 'WORKBOARD',
-    description: 'Syncs workboard items from NexusNote to unified newsfeed',
-    syncedFields: ['chainId', 'slotIndex', 'archived'],
     enabled: true,
   },
 

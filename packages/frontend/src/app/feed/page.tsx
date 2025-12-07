@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Maximize2,
   Clock,
-  KanbanSquare,
   X,
   Archive,
   Database
@@ -55,7 +54,6 @@ const SOURCE_CONFIG: Record<string, { icon: any, color: string, label: string }>
   projects: { icon: Briefcase, color: 'text-blue-400', label: 'Project' },
   capture: { icon: Link2, color: 'text-pink-400', label: 'Capture' },
   'llm-council': { icon: Bot, color: 'text-orange-400', label: 'AI Chat' },
-  workboard: { icon: KanbanSquare, color: 'text-cyan-400', label: 'Task' },
   default: { icon: null, color: 'text-gray-400', label: '' }
 };
 
@@ -64,7 +62,6 @@ const TABLE_MAPPING: Record<string, string> = {
   'nexusnote-thoughts-production': 'Thoughts',
   'nexusnote-inno-contacts-production': 'Contacts',
   'nexusnote-implementation-projects-production': 'Projects',
-  'nexusnote-tracking-workboard-production': 'Workboard',
   'Capture': 'Capture',
   'LlmCouncilStack-ConversationsTableCD91EB96-17V5OM4BFKIY8': 'LLM Council',
   'MCP-chat-conversations': 'MCP Chat',
