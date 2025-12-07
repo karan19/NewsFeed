@@ -13,16 +13,30 @@ export const handler = async (event: any) => {
   try {
     const limit = event.queryStringParameters?.limit ? parseInt(event.queryStringParameters.limit) : 50;
     const nextToken = event.queryStringParameters?.nextToken;
+    const userId = event.queryStringParameters?.userId;
+
+    let indexName = 'GSI3-GlobalFeed';
+    let keyConditionExpression = 'gsi_global_pk = :pk';
+    let expressionAttributeValues: Record<string, any> = {
+      ':pk': 'GLOBAL',
+      ':true': true,
+    };
+
+    if (userId) {
+      indexName = 'GSI4-User-CreatedAt';
+      keyConditionExpression = 'user_id = :userId';
+      expressionAttributeValues = {
+        ':userId': userId,
+        ':true': true,
+      };
+    }
 
     const command = new QueryCommand({
       TableName: TABLE_NAME,
-      IndexName: INDEX_NAME,
-      KeyConditionExpression: 'gsi_global_pk = :pk',
+      IndexName: indexName,
+      KeyConditionExpression: keyConditionExpression,
       FilterExpression: 'is_archived <> :true AND is_deleted <> :true',
-      ExpressionAttributeValues: {
-        ':pk': 'GLOBAL',
-        ':true': true,
-      },
+      ExpressionAttributeValues: expressionAttributeValues,
       ScanIndexForward: false, // Newest first
       Limit: limit,
       ExclusiveStartKey: nextToken ? JSON.parse(Buffer.from(nextToken, 'base64').toString()) : undefined,

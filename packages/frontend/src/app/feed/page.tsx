@@ -388,7 +388,11 @@ export default function FeedPage() {
         // TODO: Add Authorization header once API Gateway is secured
         // const token = await getAccessToken();
 
-        const response = await fetch(`${apiUrl}/feed?limit=50`);
+        const userId = user?.userId;
+        const queryParams = new URLSearchParams({ limit: '50' });
+        if (userId) queryParams.append('userId', userId);
+
+        const response = await fetch(`${apiUrl}/feed?${queryParams.toString()}`);
 
         if (!response.ok) {
           throw new Error('Failed to fetch feed');

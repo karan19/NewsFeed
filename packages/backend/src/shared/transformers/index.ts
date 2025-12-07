@@ -28,7 +28,11 @@ export interface RecordTransformer {
   getCreatedAt(record: Record<string, unknown>): string | undefined;
 
   /** Get updated_at from source record */
+  /** Get updated_at from source record */
   getUpdatedAt(record: Record<string, unknown>): string | undefined;
+
+  /** Extract user ID from source record (optional) */
+  extractUserId?(record: Record<string, unknown>): string | undefined;
 }
 
 /**
@@ -52,6 +56,7 @@ export function buildUnifiedRecord(
     content: transformer.transformContent(sourceRecord),
     created_at: transformer.getCreatedAt(sourceRecord) || now,
     updated_at: transformer.getUpdatedAt(sourceRecord) || now,
+    user_id: transformer.extractUserId ? transformer.extractUserId(sourceRecord) : undefined,
     event_type: eventType,
     is_deleted: false,
     gsi_global_pk: 'GLOBAL',
@@ -83,6 +88,7 @@ export const notesTransformer: RecordTransformer = {
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
   getUpdatedAt(record) { return record['updatedAt'] as string | undefined; },
+  extractUserId(record) { return record['userId'] as string | undefined; },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -110,6 +116,14 @@ export const contactsTransformer: RecordTransformer = {
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
   getUpdatedAt(record) { return record['updatedAt'] as string | undefined; },
+  extractUserId(record) {
+    // PK is typically USER#<userId>
+    const pk = record['PK'] as string;
+    if (pk && pk.startsWith('USER#')) {
+      return pk.replace('USER#', '');
+    }
+    return undefined;
+  },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -136,6 +150,7 @@ export const thoughtsTransformer: RecordTransformer = {
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
   getUpdatedAt(record) { return record['createdAt'] as string | undefined; }, // No updatedAt
+  extractUserId(record) { return record['userId'] as string | undefined; },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -163,6 +178,7 @@ export const projectsTransformer: RecordTransformer = {
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
   getUpdatedAt(record) { return record['updatedAt'] as string | undefined; },
+  extractUserId(record) { return record['userId'] as string | undefined; },
 };
 
 
@@ -216,6 +232,7 @@ export const llmCouncilTransformer: RecordTransformer = {
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
   getUpdatedAt(record) { return record['updatedAt'] as string | undefined; },
+  extractUserId(record) { return record['user_id'] as string | undefined; },
 };
 
 // ════════════════════════════════════════════════════════════════════
@@ -242,6 +259,7 @@ export const mcpChatTransformer: RecordTransformer = {
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
   getUpdatedAt(record) { return record['lastMessageAt'] as string | undefined; },
+  extractUserId(record) { return record['userId'] as string | undefined; },
 };
 
 // ════════════════════════════════════════════════════════════════════

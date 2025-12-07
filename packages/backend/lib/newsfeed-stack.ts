@@ -78,6 +78,20 @@ export class NewsFeedStack extends cdk.Stack {
       projectionType: dynamodb.ProjectionType.ALL,
     });
 
+    // GSI for User Feed (filtering by user)
+    this.unifiedTable.addGlobalSecondaryIndex({
+      indexName: 'GSI4-User-CreatedAt',
+      partitionKey: {
+        name: 'user_id',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'created_at',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    });
+
     // Create Feed Reader Lambda
     const feedReader = new lambdaNodejs.NodejsFunction(this, 'FeedReader', {
       functionName: 'NewsFeed-Reader',
