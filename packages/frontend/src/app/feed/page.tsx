@@ -4,20 +4,21 @@ import { useAuth } from '@/components/providers/auth-provider';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { 
-  StickyNote, 
-  Lightbulb, 
-  Briefcase, 
-  Link2, 
-  MessageSquare, 
-  Bot, 
+import {
+  StickyNote,
+  Lightbulb,
+  Briefcase,
+  Link2,
+  MessageSquare,
+  Bot,
   Calendar,
   ArrowRight,
   Maximize2,
   Clock,
   KanbanSquare,
   X,
-  Archive
+  Archive,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,6 +31,7 @@ interface UnifiedRecord {
   PK: string;
   source_type: string;
   record_type: string;
+  table_name: string;
   content: any; // Using any to be flexible with the dynamic content structure
   created_at: string;
 }
@@ -38,6 +40,7 @@ interface FeedItemData {
   id: string;
   source_type: string;
   record_type: string; // broadened from RecordType to string to accept backend types
+  table_name: string;
   title: string | null;
   content: string;
   created_at: string;
@@ -55,6 +58,21 @@ const SOURCE_CONFIG: Record<string, { icon: any, color: string, label: string }>
   workboard: { icon: KanbanSquare, color: 'text-cyan-400', label: 'Task' },
   default: { icon: null, color: 'text-gray-400', label: '' }
 };
+
+const TABLE_MAPPING: Record<string, string> = {
+  'nexusnote-notes-production': 'Notes',
+  'nexusnote-thoughts-production': 'Thoughts',
+  'nexusnote-inno-contacts-production': 'Contacts',
+  'nexusnote-implementation-projects-production': 'Projects',
+  'nexusnote-tracking-workboard-production': 'Workboard',
+  'Capture': 'Capture',
+  'LlmCouncilStack-ConversationsTableCD91EB96-17V5OM4BFKIY8': 'LLM Council',
+  'MCP-chat-conversations': 'MCP Chat',
+};
+
+function getFriendlyTableName(tableName: string) {
+  return TABLE_MAPPING[tableName] || tableName;
+}
 
 // Color Palettes for Cards
 // Only keeping the smart palette as it handles both themes
@@ -104,7 +122,7 @@ function formatDate(dateString: string) {
 
 function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
   const contentObj = record.content || {};
-  
+
   // Extract content based on record type or common fields
   let content = '';
   let title = contentObj.title || contentObj.contactName || null; // contactName for contacts
@@ -114,7 +132,7 @@ function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
   } else if (contentObj.description) {
     content = contentObj.description;
   } else if (record.source_type === 'contacts') {
-     content = `${contentObj.role || ''} ${contentObj.workingStyle ? `• ${contentObj.workingStyle}` : ''}`;
+    content = `${contentObj.role || ''} ${contentObj.workingStyle ? `• ${contentObj.workingStyle}` : ''}`;
   } else {
     // Fallback for unknown structures
     content = JSON.stringify(contentObj);
@@ -127,6 +145,7 @@ function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
     id: record.PK,
     source_type: record.source_type,
     record_type: recordType,
+    table_name: record.table_name || '',
     title,
     content,
     created_at: record.created_at,
@@ -153,11 +172,11 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
           const length = item.content?.length || 0;
           const hasTitle = !!item.title;
           const isList = item.content?.includes('\n');
-          
+
           // Smart Sizing Algorithm
           let colSpan = 'col-span-1';
           let rowSpan = 'row-span-1';
-          
+
           if (length > 300 && hasTitle) {
             colSpan = 'col-span-1 md:col-span-2';
             rowSpan = 'row-span-2';
@@ -168,22 +187,22 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
             colSpan = 'col-span-1';
             rowSpan = 'row-span-2';
           }
-          
+
           const config = getSourceConfig(item.source_type);
           const Icon = config.icon;
-          
+
           const isBig = rowSpan === 'row-span-2' && colSpan.includes('col-span-2');
           const isTall = rowSpan === 'row-span-2' && !isBig;
           const isWide = colSpan.includes('col-span-2') && !isBig;
           const isQuote = item.record_type === 'thought' && !hasTitle;
-          const cardColor = isQuote 
-            ? 'bg-gradient-to-br from-primary/5 to-purple-500/10 border-border' 
+          const cardColor = isQuote
+            ? 'bg-gradient-to-br from-primary/5 to-purple-500/10 border-border'
             : getCardColor(item.id);
-          
+
           return (
-            <motion.div 
+            <motion.div
               layoutId={`card-${item.id}`}
-              key={item.id} 
+              key={item.id}
               onClick={() => setSelectedId(item.id)}
               className={`
                 ${colSpan} ${rowSpan}
@@ -196,64 +215,71 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
             >
-               {/* Header */}
-               <div className={`flex items-center justify-between w-full mb-3 ${isQuote ? 'absolute top-4 right-4 w-auto mb-0' : ''}`}>
-                 <div className={`flex items-center gap-2 ${isQuote ? 'hidden' : ''}`}>
-                   {Icon && (
-                     <div className={`p-1 rounded-md bg-muted ${config.color}`}>
-                        <Icon size={12} />
-                     </div>
-                   )}
-                   {config.label && <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{config.label}</span>}
-                 </div>
-                 
-                 {/* Header Actions */}
-                 <div className="flex items-center gap-2">
-                    <button 
-                      className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all p-1 rounded-md hover:bg-muted"
-                      onClick={(e) => {
-                        e.stopPropagation(); // Prevent card click
-                        onArchive(item.id);
-                      }}
-                      title="Archive"
-                    >
-                      <Archive size={14} />
-                    </button>
-                    {isBig && <Maximize2 size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
-                 </div>
-               </div>
-               
-               {/* Content */}
-               <div className="flex-1 min-h-0 overflow-hidden relative">
-                 {hasTitle && (
-                   <motion.h3 
-                     layoutId={`title-${item.id}`}
-                     className={`font-bold text-foreground mb-2 leading-tight ${isBig ? 'text-2xl' : 'text-lg'}`}
-                   >
-                     {item.title}
-                   </motion.h3>
-                 )}
-                 
-                 <div className={`
+              {/* Header */}
+              <div className={`flex items-center justify-between w-full mb-3 ${isQuote ? 'absolute top-4 right-4 w-auto mb-0' : ''}`}>
+                <div className={`flex items-center gap-2 ${isQuote ? 'hidden' : ''}`}>
+                  {Icon && (
+                    <div className={`p-1 rounded-md bg-muted ${config.color}`}>
+                      <Icon size={12} />
+                    </div>
+                  )}
+                  <div className="flex flex-col">
+                    {config.label && <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground leading-none">{config.label}</span>}
+                    {item.table_name && (
+                      <span className="text-[9px] text-muted-foreground/70 truncate max-w-[100px] leading-tight mt-0.5">
+                        {getFriendlyTableName(item.table_name)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Header Actions */}
+                <div className="flex items-center gap-2">
+                  <button
+                    className="text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-all p-1 rounded-md hover:bg-muted"
+                    onClick={(e) => {
+                      e.stopPropagation(); // Prevent card click
+                      onArchive(item.id);
+                    }}
+                    title="Archive"
+                  >
+                    <Archive size={14} />
+                  </button>
+                  {isBig && <Maximize2 size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-h-0 overflow-hidden relative">
+                {hasTitle && (
+                  <motion.h3
+                    layoutId={`title-${item.id}`}
+                    className={`font-bold text-foreground mb-2 leading-tight ${isBig ? 'text-2xl' : 'text-lg'}`}
+                  >
+                    {item.title}
+                  </motion.h3>
+                )}
+
+                <div className={`
                    text-muted-foreground leading-relaxed whitespace-pre-line
                    ${isQuote ? 'text-xl font-serif italic text-foreground/80' : 'text-sm'}
                    ${isBig ? 'line-clamp-6' : isTall ? 'line-clamp-[8]' : 'line-clamp-3'}
                  `}>
-                   {item.content}
-                 </div>
-                 
-                 {/* Fade out for truncated content */}
-                 {(isBig || isTall || isWide) && <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/50 to-transparent" />}
-               </div>
-               
-               {/* Footer */}
-               <div className={`mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground ${isQuote ? 'hidden' : ''}`}>
-                  <div className="flex items-center gap-1">
-                    <Clock size={12} />
-                    <span>{formatDate(item.created_at)}</span>
-                  </div>
-                  {(isBig || isTall || isWide) && <span className="text-primary/80 group-hover:text-primary flex items-center gap-1">Read <ArrowRight size={10} /></span>}
-               </div>
+                  {item.content}
+                </div>
+
+                {/* Fade out for truncated content */}
+                {(isBig || isTall || isWide) && <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/50 to-transparent" />}
+              </div>
+
+              {/* Footer */}
+              <div className={`mt-4 pt-4 border-t border-border flex items-center justify-between text-xs text-muted-foreground ${isQuote ? 'hidden' : ''}`}>
+                <div className="flex items-center gap-1">
+                  <Clock size={12} />
+                  <span>{formatDate(item.created_at)}</span>
+                </div>
+                {(isBig || isTall || isWide) && <span className="text-primary/80 group-hover:text-primary flex items-center gap-1">Read <ArrowRight size={10} /></span>}
+              </div>
             </motion.div>
           );
         })}
@@ -280,13 +306,13 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                     {/* Modal Header */}
                     <div className="flex items-center gap-3 mb-6">
                       {(() => {
-                          const Icon = getSourceConfig(selectedItem.source_type).icon;
-                          if (!Icon) return null;
-                          return (
-                            <div className={`p-2 rounded-lg bg-muted ${getSourceConfig(selectedItem.source_type).color}`}>
-                              <Icon size={20} />
-                            </div>
-                          );
+                        const Icon = getSourceConfig(selectedItem.source_type).icon;
+                        if (!Icon) return null;
+                        return (
+                          <div className={`p-2 rounded-lg bg-muted ${getSourceConfig(selectedItem.source_type).color}`}>
+                            <Icon size={20} />
+                          </div>
+                        );
                       })()}
                       <div>
                         {getSourceConfig(selectedItem.source_type).label && (
@@ -294,23 +320,31 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                             {getSourceConfig(selectedItem.source_type).label}
                           </span>
                         )}
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock size={12} />
-                          <span>{formatDate(selectedItem.created_at)}</span>
+                        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                          {selectedItem.table_name && (
+                            <div className="flex items-center gap-1 text-primary/70 font-medium">
+                              <Database size={10} />
+                              <span>{getFriendlyTableName(selectedItem.table_name)}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center gap-1">
+                            <Clock size={12} />
+                            <span>{formatDate(selectedItem.created_at)}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     {/* Modal Content */}
                     {selectedItem.title && (
-                      <motion.h2 
+                      <motion.h2
                         layoutId={`title-${selectedItem.id}`}
                         className="text-3xl font-bold text-foreground mb-6 leading-tight"
                       >
                         {selectedItem.title}
                       </motion.h2>
                     )}
-                    
+
                     <div className="prose prose-invert dark:prose-invert prose-neutral max-w-none text-foreground/90">
                       <p className="whitespace-pre-line leading-relaxed">
                         {selectedItem.content}
@@ -343,11 +377,11 @@ export default function FeedPage() {
   useEffect(() => {
     async function fetchFeed() {
       if (!isAuthenticated) return;
-      
+
       try {
         setLoading(true);
         const apiUrl = process.env.NEXT_PUBLIC_NEWSFEED_API_URL;
-        
+
         if (!apiUrl) {
           console.warn('NEXT_PUBLIC_NEWSFEED_API_URL not set, using placeholder data');
           setLoading(false);
@@ -356,9 +390,9 @@ export default function FeedPage() {
 
         // TODO: Add Authorization header once API Gateway is secured
         // const token = await getAccessToken();
-        
+
         const response = await fetch(`${apiUrl}/feed?limit=50`);
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch feed');
         }
@@ -388,7 +422,7 @@ export default function FeedPage() {
       // Call API
       // In a real app, you would also get the token for auth
       // const token = await getAccessToken(); 
-      
+
       // Note: The path is /feed/{id}/archive
       const response = await fetch(`${apiUrl}/feed/${encodeURIComponent(id)}/archive`, {
         method: 'POST',
@@ -418,22 +452,22 @@ export default function FeedPage() {
         <div className="w-full max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-foreground text-background flex items-center justify-center">
-               <span className="font-bold text-lg">N</span>
+              <span className="font-bold text-lg">N</span>
             </div>
             <span className="font-semibold tracking-tight hidden sm:inline-block">NewsFeed</span>
           </div>
 
           <div className="flex items-center gap-3">
-             <div className="hidden md:flex items-center gap-4 text-xs font-medium text-muted-foreground mr-4">
-                <span>{items.length} items</span>
-                <span>{loading ? 'Updating...' : 'Live'}</span>
-             </div>
-             <ThemeToggle />
-             <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground h-8 w-8 p-0 rounded-full">
-               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
-                 {user?.username?.[0]?.toUpperCase()}
-               </div>
-             </Button>
+            <div className="hidden md:flex items-center gap-4 text-xs font-medium text-muted-foreground mr-4">
+              <span>{items.length} items</span>
+              <span>{loading ? 'Updating...' : 'Live'}</span>
+            </div>
+            <ThemeToggle />
+            <Button variant="ghost" size="sm" onClick={logout} className="text-muted-foreground hover:text-foreground h-8 w-8 p-0 rounded-full">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-500 to-blue-500 flex items-center justify-center text-xs font-bold text-white">
+                {user?.username?.[0]?.toUpperCase()}
+              </div>
+            </Button>
           </div>
         </div>
       </header>
@@ -445,7 +479,7 @@ export default function FeedPage() {
             {error}
           </div>
         )}
-        
+
         {loading && items.length === 0 ? (
           <div className="flex items-center justify-center py-20">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
@@ -453,7 +487,7 @@ export default function FeedPage() {
         ) : (
           <BentoGrid items={items} onArchive={handleArchive} />
         )}
-        
+
         {/* Load More Button - Only show if we have items */}
         {items.length > 0 && (
           <div className="flex justify-center mt-8">
