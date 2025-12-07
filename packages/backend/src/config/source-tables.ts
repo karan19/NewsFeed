@@ -102,7 +102,7 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
   // ════════════════════════════════════════════════════════════════════
   {
     processorId: 'llm-council',
-    tableName: 'LlmCouncilStack-ConversationsTableCD91EB96-17V5OM4BFKIY8',
+    tableName: 'LLMCouncilConversations',
     sourceType: 'external',
     recordType: 'LLM_CONVERSATION',
     description: 'Syncs LLM Council conversations to unified newsfeed',

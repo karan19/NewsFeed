@@ -63,7 +63,7 @@ const TABLE_MAPPING: Record<string, string> = {
   'nexusnote-inno-contacts-production': 'Contacts',
   'nexusnote-implementation-projects-production': 'Projects',
   'Capture': 'Capture',
-  'LlmCouncilStack-ConversationsTableCD91EB96-17V5OM4BFKIY8': 'LLM Council',
+  'LLMCouncilConversations': 'LLM Council',
   'MCP-chat-conversations': 'MCP Chat',
 };
 

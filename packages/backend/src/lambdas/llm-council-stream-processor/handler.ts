@@ -5,9 +5,9 @@ import { UnifiedRecord, StreamEventType } from '../../shared/types';
 import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
 
 /**
- * Configuration for LlmCouncilStack-ConversationsTable
+ * Configuration for LLMCouncilConversations table
  */
-const SOURCE_TABLE_NAME = 'LlmCouncilStack-ConversationsTableCD91EB96-17V5OM4BFKIY8';
+const SOURCE_TABLE_NAME = 'LLMCouncilConversations';
 const SOURCE_TYPE = 'external';
 const RECORD_TYPE = 'LLM_CONVERSATION';
 

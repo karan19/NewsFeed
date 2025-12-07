@@ -198,7 +198,7 @@ export const captureTransformer: RecordTransformer = {
 // LLM COUNCIL TRANSFORMER
 // ════════════════════════════════════════════════════════════════════
 export const llmCouncilTransformer: RecordTransformer = {
-  sourceTableName: 'LlmCouncilStack-ConversationsTableCD91EB96-17V5OM4BFKIY8',
+  sourceTableName: 'LLMCouncilConversations',
   sourceType: 'external',
   recordType: 'LLM_CONVERSATION',
 
