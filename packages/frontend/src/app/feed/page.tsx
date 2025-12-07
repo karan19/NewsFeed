@@ -314,7 +314,7 @@ function BentoGrid({ items, onArchive }: { items: FeedItemData[], onArchive: (id
                 </div>
 
                 {/* Fade out for truncated content */}
-                {(isBig || isTall || isWide) && <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-background/50 to-transparent" />}
+
               </div>
 
               {/* Footer */}
