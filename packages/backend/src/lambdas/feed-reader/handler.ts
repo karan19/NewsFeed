@@ -5,7 +5,7 @@ const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
 const TABLE_NAME = process.env.UNIFIED_TABLE_NAME || '';
-const INDEX_NAME = 'GSI3_Global_Feed';
+const INDEX_NAME = 'GSI3-GlobalFeed';
 
 export const handler = async (event: any) => {
   console.log('Event:', JSON.stringify(event));

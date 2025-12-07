@@ -26,7 +26,7 @@ import { UnifiedRecord } from '../src/shared/types';
 // CONFIGURATION
 // ════════════════════════════════════════════════════════════════════
 
-const UNIFIED_TABLE_NAME = 'NewsFeed_Unified_Table';
+const UNIFIED_TABLE_NAME = 'NewsFeed-UnifiedTable';
 const BATCH_SIZE = 25; // DynamoDB BatchWrite limit
 const DEFAULT_REGION = 'us-west-2';
 
@@ -119,7 +119,7 @@ Examples:
 
 function createDynamoClient(region: string, profile?: string): DynamoDBDocumentClient {
   const clientConfig: { region: string } = { region };
-  
+
   // Note: AWS SDK will use AWS_PROFILE env var or --profile if set
   if (profile) {
     process.env.AWS_PROFILE = profile;
@@ -195,7 +195,7 @@ async function backfillTable(
       }
 
       stats.scanned++;
-      
+
       try {
         const record = unmarshall(item as Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>);
         const unifiedRecord = buildUnifiedRecord(transformer, record, 'INSERT');
@@ -217,10 +217,10 @@ async function backfillTable(
   // Write to unified table in batches
   if (!options.dryRun && unifiedRecords.length > 0) {
     console.log(`   Writing ${unifiedRecords.length} records to unified table...`);
-    
+
     for (let i = 0; i < unifiedRecords.length; i += BATCH_SIZE) {
       const batch = unifiedRecords.slice(i, i + BATCH_SIZE);
-      
+
       try {
         await docClient.send(new BatchWriteCommand({
           RequestItems: {
@@ -268,7 +268,7 @@ async function main(): Promise<void> {
 
   // Determine which tables to backfill
   let tablesToBackfill: SourceTableConfig[];
-  
+
   if (args.all) {
     tablesToBackfill = enabledTables;
     console.log(`\n📋 Backfilling ALL ${enabledTables.length} enabled tables`);
@@ -305,7 +305,7 @@ async function main(): Promise<void> {
   // Print summary
   console.log('\n' + '═'.repeat(60));
   console.log('📊 BACKFILL SUMMARY\n');
-  
+
   let totalScanned = 0;
   let totalWritten = 0;
   let totalErrors = 0;
@@ -315,7 +315,7 @@ async function main(): Promise<void> {
     const status = stats.errors > 0 ? '⚠️' : '✅';
     console.log(`${status} ${stats.tableName}`);
     console.log(`   Scanned: ${stats.scanned} | Written: ${stats.written} | Errors: ${stats.errors} | Time: ${(stats.durationMs / 1000).toFixed(1)}s`);
-    
+
     totalScanned += stats.scanned;
     totalWritten += stats.written;
     totalErrors += stats.errors;
@@ -325,11 +325,11 @@ async function main(): Promise<void> {
   console.log('\n' + '─'.repeat(60));
   console.log(`📈 TOTAL: Scanned ${totalScanned} | Written ${totalWritten} | Errors ${totalErrors}`);
   console.log(`⏱️  Total Time: ${(totalDuration / 1000).toFixed(1)}s`);
-  
+
   if (args.dryRun) {
     console.log('\n🔍 This was a DRY RUN - no data was written');
   }
-  
+
   console.log('\n✨ Done!\n');
 }
 

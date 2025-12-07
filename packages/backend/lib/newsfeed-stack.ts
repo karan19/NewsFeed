@@ -20,8 +20,8 @@ export class NewsFeedStack extends cdk.Stack {
     const sourceTables = getEnabledSourceTables();
 
     // Create the unified DynamoDB table
-    this.unifiedTable = new dynamodb.Table(this, 'Unified_Table', {
-      tableName: 'NewsFeed_Unified_Table',
+    this.unifiedTable = new dynamodb.Table(this, 'UnifiedTable', {
+      tableName: 'NewsFeed-UnifiedTable',
       partitionKey: {
         name: 'PK',
         type: dynamodb.AttributeType.STRING,
@@ -31,14 +31,14 @@ export class NewsFeedStack extends cdk.Stack {
         type: dynamodb.AttributeType.STRING,
       },
       billingMode: dynamodb.BillingMode.PAY_PER_REQUEST,
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
       pointInTimeRecovery: true,
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES,
     });
 
     // GSI for querying by source type and time (for newsfeed)
     this.unifiedTable.addGlobalSecondaryIndex({
-      indexName: 'GSI1_Source_Type_Created_At',
+      indexName: 'GSI1-SourceType-CreatedAt',
       partitionKey: {
         name: 'source_type',
         type: dynamodb.AttributeType.STRING,
@@ -52,7 +52,7 @@ export class NewsFeedStack extends cdk.Stack {
 
     // GSI for querying all items by time (global newsfeed)
     this.unifiedTable.addGlobalSecondaryIndex({
-      indexName: 'GSI2_Record_Type_Created_At',
+      indexName: 'GSI2-RecordType-CreatedAt',
       partitionKey: {
         name: 'record_type',
         type: dynamodb.AttributeType.STRING,
@@ -66,7 +66,7 @@ export class NewsFeedStack extends cdk.Stack {
 
     // GSI for true Global Feed (across all types)
     this.unifiedTable.addGlobalSecondaryIndex({
-      indexName: 'GSI3_Global_Feed',
+      indexName: 'GSI3-GlobalFeed',
       partitionKey: {
         name: 'gsi_global_pk',
         type: dynamodb.AttributeType.STRING,
@@ -79,8 +79,8 @@ export class NewsFeedStack extends cdk.Stack {
     });
 
     // Create Feed Reader Lambda
-    const feedReader = new lambdaNodejs.NodejsFunction(this, 'Feed_Reader', {
-      functionName: 'NewsFeed_Reader',
+    const feedReader = new lambdaNodejs.NodejsFunction(this, 'FeedReader', {
+      functionName: 'NewsFeed-Reader',
       description: 'Reads the global newsfeed',
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler',
@@ -101,8 +101,8 @@ export class NewsFeedStack extends cdk.Stack {
     this.unifiedTable.grantReadData(feedReader);
 
     // Create Archive Item Lambda
-    const archiveItem = new lambdaNodejs.NodejsFunction(this, 'Archive_Item', {
-      functionName: 'NewsFeed_Archive_Item',
+    const archiveItem = new lambdaNodejs.NodejsFunction(this, 'ArchiveItem', {
+      functionName: 'NewsFeed-ArchiveItem',
       description: 'Archives a newsfeed item',
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler',
@@ -123,10 +123,10 @@ export class NewsFeedStack extends cdk.Stack {
     this.unifiedTable.grantReadWriteData(archiveItem);
 
     // Create API Gateway
-    const api = new apigateway.LambdaRestApi(this, 'NewsFeed_API', {
+    const api = new apigateway.LambdaRestApi(this, 'Api', {
       handler: feedReader,
       proxy: false,
-      restApiName: 'NewsFeed API',
+      restApiName: 'NewsFeed-Api',
       defaultCorsPreflightOptions: {
         allowOrigins: apigateway.Cors.ALL_ORIGINS,
         allowMethods: apigateway.Cors.ALL_METHODS,
@@ -140,10 +140,10 @@ export class NewsFeedStack extends cdk.Stack {
     archiveResource.addMethod('POST', new apigateway.LambdaIntegration(archiveItem)); // POST /feed/{id}/archive
 
     // Outputs
-    new cdk.CfnOutput(this, 'Api_Url', {
+    new cdk.CfnOutput(this, 'ApiUrl', {
       value: api.url,
       description: 'API Gateway URL',
-      exportName: 'NewsFeed-Api-Url',
+      exportName: 'NewsFeed-ApiUrl',
     });
 
 
@@ -153,19 +153,19 @@ export class NewsFeedStack extends cdk.Stack {
     }
 
     // Outputs
-    new cdk.CfnOutput(this, 'Unified_Table_Name', {
+    new cdk.CfnOutput(this, 'UnifiedTableName', {
       value: this.unifiedTable.tableName,
       description: 'Name of the unified DynamoDB table',
-      exportName: 'NewsFeed-Unified-Table-Name',
+      exportName: 'NewsFeed-UnifiedTableName',
     });
 
-    new cdk.CfnOutput(this, 'Unified_Table_Arn', {
+    new cdk.CfnOutput(this, 'UnifiedTableArn', {
       value: this.unifiedTable.tableArn,
       description: 'ARN of the unified DynamoDB table',
-      exportName: 'NewsFeed-Unified-Table-Arn',
+      exportName: 'NewsFeed-UnifiedTableArn',
     });
 
-    new cdk.CfnOutput(this, 'Source_Tables_Count', {
+    new cdk.CfnOutput(this, 'SourceTablesCount', {
       value: sourceTables.length.toString(),
       description: 'Number of source tables configured',
     });
@@ -179,15 +179,15 @@ export class NewsFeedStack extends cdk.Stack {
     const constructId = this.toPascalCase(processorId);
 
     // Enable streams on the source table using Custom Resource
-    const streamEnabler = new StreamEnabler(this, `${constructId}_Stream_Enabler`, {
+    const streamEnabler = new StreamEnabler(this, `${constructId}StreamEnabler`, {
       tableName: tableName,
       processorId: processorId,
       kmsKeyArn: KMS_KEY_ARN,
     });
 
     // Create Lambda processor for this source table
-    const processor = new lambdaNodejs.NodejsFunction(this, `${constructId}_Stream_Processor`, {
-      functionName: `NewsFeed_${constructId}_Processor`,
+    const processor = new lambdaNodejs.NodejsFunction(this, `${constructId}Processor`, {
+      functionName: `NewsFeed-${constructId}`,
       description: description,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler',
@@ -229,7 +229,7 @@ export class NewsFeedStack extends cdk.Stack {
     }));
 
     // Import the source table with the stream ARN from the enabler
-    const sourceTable = dynamodb.Table.fromTableAttributes(this, `${constructId}_Source_Table`, {
+    const sourceTable = dynamodb.Table.fromTableAttributes(this, `${constructId}SourceTable`, {
       tableArn: `arn:aws:dynamodb:${this.region}:${this.account}:table/${tableName}`,
       tableStreamArn: streamEnabler.streamArn,
     });
@@ -247,13 +247,13 @@ export class NewsFeedStack extends cdk.Stack {
     );
 
     // Output the processor ARN
-    new cdk.CfnOutput(this, `${constructId}_Processor_Arn`, {
+    new cdk.CfnOutput(this, `${constructId}ProcessorArn`, {
       value: processor.functionArn,
       description: `ARN of the ${processorId} stream processor Lambda`,
     });
 
     // Output the stream ARN
-    new cdk.CfnOutput(this, `${constructId}_Stream_Arn`, {
+    new cdk.CfnOutput(this, `${constructId}StreamArn`, {
       value: streamEnabler.streamArn,
       description: `Stream ARN for ${tableName}`,
     });

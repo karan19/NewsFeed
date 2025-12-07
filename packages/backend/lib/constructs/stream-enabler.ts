@@ -10,10 +10,10 @@ import * as path from 'path';
 export interface StreamEnablerProps {
   /** Name of the DynamoDB table to enable streams on */
   tableName: string;
-  
+
   /** Unique identifier for this enabler (used in Lambda naming) */
   processorId: string;
-  
+
   /** KMS Key ARN if the table is encrypted (optional) */
   kmsKeyArn?: string;
 }
@@ -29,7 +29,7 @@ export interface StreamEnablerProps {
 export class StreamEnabler extends Construct {
   /** The stream ARN of the table (available after streams are enabled) */
   public readonly streamArn: string;
-  
+
   /** The table name */
   public readonly tableName: string;
 
@@ -44,9 +44,9 @@ export class StreamEnabler extends Construct {
       .split(/[-_]/)
       .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
       .join('');
-    
+
     const enablerFunction = new lambdaNodejs.NodejsFunction(this, 'EnablerFunction', {
-      functionName: `NewsFeed_${pascalCaseId}_Stream_Enabler`,
+      functionName: `NewsFeed-${pascalCaseId}-StreamEnabler`,
       description: `Enables DynamoDB Streams on ${props.tableName} for NewsFeed`,
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: 'handler',
@@ -100,4 +100,3 @@ export class StreamEnabler extends Construct {
     this.streamArn = customResource.getAttString('StreamArn');
   }
 }
-
