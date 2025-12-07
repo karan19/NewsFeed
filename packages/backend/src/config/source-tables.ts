@@ -53,7 +53,7 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
     sourceType: 'personal',
     recordType: 'NOTE',
     description: 'Syncs notes from NexusNote to unified newsfeed',
-    syncedFields: ['title', 'content'],
+    syncedFields: ['title', 'content', 'aiTags'],
     enabled: true,
   },
   {
@@ -62,7 +62,7 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
     sourceType: 'personal',
     recordType: 'CONTACT',
     description: 'Syncs contacts from NexusNote to unified newsfeed',
-    syncedFields: ['contactName', 'role', 'workingStyle'],
+    syncedFields: ['pk', 'sk', 'contactName', 'role', 'workingStyle', 'createdAt', 'updatedAt', 'nextInteraction'],
     enabled: true,
   },
   {
@@ -80,7 +80,7 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
     sourceType: 'personal',
     recordType: 'PROJECT',
     description: 'Syncs implementation projects from NexusNote to unified newsfeed',
-    syncedFields: ['title', 'description', 'status'],
+    syncedFields: ['projectId', 'userId', 'title', 'description', 'status', 'createdAt', 'updatedAt', 'notes'],
     enabled: true,
   },
 
@@ -93,7 +93,7 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
     sourceType: 'external',
     recordType: 'CAPTURE',
     description: 'Syncs captured content from various sources to unified newsfeed',
-    syncedFields: ['title', 'content', 'source', 'sourceUrl'],
+    syncedFields: ['title', 'content', 'source', 'sourceUrl', 'url'],
     enabled: true,
   },
 
@@ -109,15 +109,7 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
     syncedFields: ['id'],
     enabled: true,
   },
-  {
-    processorId: 'mcp-chat',
-    tableName: 'MCP-chat-conversations',
-    sourceType: 'external',
-    recordType: 'MCP_CONVERSATION',
-    description: 'Syncs MCP chat conversations to unified newsfeed',
-    syncedFields: ['sessionId', 'userId'],
-    enabled: true,
-  },
+
 
   // ════════════════════════════════════════════════════════════════════
   // BACKUP/UTILITY TABLES (Not suitable for newsfeed - disabled)
@@ -135,15 +127,15 @@ export const SOURCE_TABLES: SourceTableConfig[] = [
   // ════════════════════════════════════════════════════════════════════
   // TABLES WITH NO DATA YET (Commented out - enable when data exists)
   // ════════════════════════════════════════════════════════════════════
-  // {
-  //   processorId: 'soliloquies',
-  //   tableName: 'nexusnote-soliloquies-production',
-  //   sourceType: 'personal',
-  //   recordType: 'SOLILOQUY',
-  //   description: 'Syncs soliloquies from NexusNote to unified newsfeed',
-  //   syncedFields: ['content'],  // Assumed - table is currently empty
-  //   enabled: false,  // Enable when table has data
-  // },
+  {
+    processorId: 'soliloquies',
+    tableName: 'nexusnote-soliloquies-production',
+    sourceType: 'personal',
+    recordType: 'SOLILOQUY',
+    description: 'Voice notes / soliloquies',
+    syncedFields: ['normalizedContent', 'userId', 'createdAt', 'soliloquyId'],
+    enabled: true,
+  },
 
   // ════════════════════════════════════════════════════════════════════
   // METADATA TABLES (Not suitable for newsfeed - disabled)

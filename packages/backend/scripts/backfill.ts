@@ -202,8 +202,13 @@ async function backfillTable(
         unifiedRecords.push(unifiedRecord);
         stats.transformed++;
       } catch (error) {
-        stats.errors++;
-        console.error(`   ❌ Error transforming record: ${(error as Error).message}`);
+        const msg = (error as Error).message;
+        if (msg.includes('SKIPPING_RECORD')) {
+          stats.skipped++;
+        } else {
+          stats.errors++;
+          console.error(`   ❌ Error transforming record: ${msg}`);
+        }
       }
     }
 

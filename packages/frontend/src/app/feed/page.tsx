@@ -17,7 +17,8 @@ import {
   Clock,
   X,
   Archive,
-  Database
+  Database,
+  Mic,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -54,6 +55,7 @@ const SOURCE_CONFIG: Record<string, { icon: any, color: string, label: string }>
   projects: { icon: Briefcase, color: 'text-blue-400', label: 'Project' },
   capture: { icon: Link2, color: 'text-pink-400', label: 'Capture' },
   'llm-council': { icon: Bot, color: 'text-orange-400', label: 'AI Chat' },
+  soliloquies: { icon: Mic, color: 'text-red-400', label: 'Voice Note' },
   default: { icon: null, color: 'text-gray-400', label: '' }
 };
 
@@ -64,7 +66,7 @@ const TABLE_MAPPING: Record<string, string> = {
   'nexusnote-implementation-projects-production': 'Projects',
   'Capture': 'Capture',
   'LLMCouncilConversations': 'LLM Council',
-  'MCP-chat-conversations': 'MCP Chat',
+  'nexusnote-soliloquies-production': 'Soliloquies',
 };
 
 function getFriendlyTableName(tableName: string) {
@@ -130,6 +132,15 @@ function mapRecordToFeedItem(record: UnifiedRecord): FeedItemData {
     content = contentObj.description;
   } else if (record.source_type === 'contacts') {
     content = `${contentObj.role || ''} ${contentObj.workingStyle ? `• ${contentObj.workingStyle}` : ''}`;
+  } else if (record.record_type === 'LLM_CONVERSATION') {
+    // LLM Council specific mapping
+    const query = contentObj.userQuery;
+    const response = contentObj.councilResponse;
+    if (query && response) {
+      content = `Q: ${query}\n\nA: ${response}`;
+    } else {
+      content = query || response || JSON.stringify(contentObj);
+    }
   } else {
     // Fallback for unknown structures
     content = JSON.stringify(contentObj);

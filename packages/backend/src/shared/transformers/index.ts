@@ -83,6 +83,7 @@ export const notesTransformer: RecordTransformer = {
     return {
       title: record['title'] || '',
       content: record['content'] || '',
+      aiTags: record['aiTags'] || '',
     };
   },
 
@@ -111,6 +112,7 @@ export const contactsTransformer: RecordTransformer = {
       contactName: record['contactName'] || '',
       role: record['role'] || '',
       workingStyle: record['workingStyle'] || '',
+      nextInteraction: record['nextInteraction'] || '',
     };
   },
 
@@ -173,6 +175,7 @@ export const projectsTransformer: RecordTransformer = {
       title: record['title'] || '',
       description: record['description'] || '',
       status: record['status'] || '',
+      notes: record['notes'] || '',
     };
   },
 
@@ -203,6 +206,7 @@ export const captureTransformer: RecordTransformer = {
       content: record['content'] || '',
       source: record['source'] || '',
       sourceUrl: record['sourceUrl'] || '',
+      url: record['url'] || '',
     };
   },
 
@@ -221,44 +225,65 @@ export const llmCouncilTransformer: RecordTransformer = {
   extractId(record) {
     const id = record['id'] as string;
     if (!id) throw new Error('Missing id');
+    if (id.startsWith('user_council')) {
+      throw new Error('SKIPPING_RECORD: Internal user_council record');
+    }
+    return id;
+  },
+
+  transformContent(record) {
+    const messages = record['messages'] as any[];
+    let userQuery = '';
+    let councilResponse = '';
+
+    if (Array.isArray(messages) && messages.length > 0) {
+      // 1. Extract User Query (usually first message)
+      const firstMsg = messages[0];
+      userQuery = firstMsg?.content || '';
+
+      // 2. Extract Stage 3 Response (usually second message)
+      if (messages.length > 1) {
+        const secondMsg = messages[1];
+        councilResponse = secondMsg?.stage3?.response || '';
+      }
+    }
+
+    return {
+      id: record['id'] || '',
+      title: record['title'] || '', // Keep title if useful
+      userQuery,
+      councilResponse,
+    };
+  },
+
+  getCreatedAt(record) { return record['created_at'] as string | undefined; },
+  getUpdatedAt(record) { return record['created_at'] as string | undefined; },
+  extractUserId(record) { return record['user_id'] as string | undefined; },
+};
+
+// ════════════════════════════════════════════════════════════════════
+// SOLILOQUIES TRANSFORMER
+// ════════════════════════════════════════════════════════════════════
+export const soliloquiesTransformer: RecordTransformer = {
+  sourceTableName: 'nexusnote-soliloquies-production',
+  sourceType: 'personal',
+  recordType: 'SOLILOQUY',
+
+  extractId(record) {
+    const id = record['soliloquyId'] as string;
+    if (!id) throw new Error('Missing soliloquyId');
     return id;
   },
 
   transformContent(record) {
     return {
-      id: record['id'] || '',
+      content: record['normalizedContent'] || '',
+      duration: record['durationSeconds'] || 0,
     };
   },
 
   getCreatedAt(record) { return record['createdAt'] as string | undefined; },
-  getUpdatedAt(record) { return record['updatedAt'] as string | undefined; },
-  extractUserId(record) { return record['user_id'] as string | undefined; },
-};
-
-// ════════════════════════════════════════════════════════════════════
-// MCP CHAT TRANSFORMER
-// ════════════════════════════════════════════════════════════════════
-export const mcpChatTransformer: RecordTransformer = {
-  sourceTableName: 'MCP-chat-conversations',
-  sourceType: 'external',
-  recordType: 'MCP_CONVERSATION',
-
-  extractId(record) {
-    const sessionId = record['sessionId'] as string;
-    const createdAt = record['createdAt'] as string;
-    if (!sessionId || !createdAt) throw new Error('Missing sessionId or createdAt');
-    return `${sessionId}#${createdAt}`;
-  },
-
-  transformContent(record) {
-    return {
-      sessionId: record['sessionId'] || '',
-      userId: record['userId'] || '',
-    };
-  },
-
-  getCreatedAt(record) { return record['createdAt'] as string | undefined; },
-  getUpdatedAt(record) { return record['lastMessageAt'] as string | undefined; },
+  getUpdatedAt(record) { return record['processedAt'] as string | undefined; }, // Using processedAt as verified update time
   extractUserId(record) { return record['userId'] as string | undefined; },
 };
 
@@ -276,7 +301,7 @@ export const TRANSFORMERS: Record<string, RecordTransformer> = {
   'projects': projectsTransformer,
   'capture': captureTransformer,
   'llm-council': llmCouncilTransformer,
-  'mcp-chat': mcpChatTransformer,
+  'soliloquies': soliloquiesTransformer,
 };
 
 /**
