@@ -2,7 +2,7 @@ import { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { UnifiedRecord, StreamEventType } from '../../shared/types';
-import { logger, putUnifiedRecord, softDeleteUnifiedRecord } from '../../shared/utils';
+import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
 
 /**
  * Configuration for nexusnote-implementation-projects-production table
@@ -101,12 +101,12 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
       const keys = unmarshall(
         record.dynamodb.Keys as Record<string, AttributeValue>
       ) as ProjectsSourceRecord;
-      
+
       const originalId = extractId(keys);
       const pk = `${SOURCE_TABLE_NAME}#${originalId}`;
       const sk = 'RECORD';
 
-      await softDeleteUnifiedRecord(pk, sk);
+      await hardDeleteUnifiedRecord(pk, sk);
     } else {
       if (!record.dynamodb?.NewImage) {
         logger.warn(`${eventType} event without NewImage, skipping`);
@@ -126,7 +126,7 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
       }
 
       const unifiedRecord = buildUnifiedRecord(newImage, eventType, existingCreatedAt);
-      
+
       logger.info('Syncing project to unified table', {
         recordId: unifiedRecord.original_id,
         title: (unifiedRecord.content as Record<string, unknown>).title,

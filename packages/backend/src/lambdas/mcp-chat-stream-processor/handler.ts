@@ -2,7 +2,7 @@ import { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { UnifiedRecord, StreamEventType } from '../../shared/types';
-import { logger, putUnifiedRecord, softDeleteUnifiedRecord } from '../../shared/utils';
+import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
 
 /**
  * Configuration for MCP-chat-conversations table
@@ -97,12 +97,12 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
       const keys = unmarshall(
         record.dynamodb.Keys as Record<string, AttributeValue>
       ) as McpChatSourceRecord;
-      
+
       const originalId = extractId(keys);
       const pk = `${SOURCE_TABLE_NAME}#${originalId}`;
       const sk = 'RECORD';
 
-      await softDeleteUnifiedRecord(pk, sk);
+      await hardDeleteUnifiedRecord(pk, sk);
     } else {
       if (!record.dynamodb?.NewImage) {
         logger.warn(`${eventType} event without NewImage, skipping`);
@@ -122,7 +122,7 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
       }
 
       const unifiedRecord = buildUnifiedRecord(newImage, eventType, existingCreatedAt);
-      
+
       logger.info('Syncing MCP chat conversation to unified table', {
         recordId: unifiedRecord.original_id,
         sessionId: (unifiedRecord.content as Record<string, unknown>).sessionId,
