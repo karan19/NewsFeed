@@ -3,7 +3,7 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { StreamEventType } from '../../shared/types';
 import { logger, putUnifiedRecord, hardDeleteUnifiedRecord, enrichUnifiedRecord } from '../../shared/utils';
-import { soliloquiesTransformer, buildUnifiedRecord } from '../../shared/transformers';
+import { soliloquiesTransformer, buildUnifiedRecord, extractIdForDelete } from '../../shared/transformers';
 
 /**
  * Process a single DynamoDB Stream record
@@ -30,13 +30,17 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
             const keys = unmarshall(
                 record.dynamodb.Keys as Record<string, AttributeValue>
             );
+            const oldImage = record.dynamodb?.OldImage
+                ? unmarshall(record.dynamodb.OldImage as Record<string, AttributeValue>)
+                : undefined;
 
-            // Soliloquies transformer ID extraction
-            const originalId = soliloquiesTransformer.extractId(keys);
+            // Use extractIdForDelete which handles key/oldImage fallback
+            const originalId = extractIdForDelete(soliloquiesTransformer, keys, oldImage);
             const pk = `${soliloquiesTransformer.sourceTableName}#${originalId}`;
             const sk = 'RECORD';
 
             await hardDeleteUnifiedRecord(pk, sk);
+            logger.info('Deleted record from unified table', { pk, sk });
         } else {
             if (!record.dynamodb?.NewImage) {
                 logger.warn(`${eventType} event without NewImage, skipping`);

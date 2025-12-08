@@ -18,8 +18,15 @@ export interface RecordTransformer {
   sourceType: 'personal' | 'external';
   recordType: string;
 
-  /** Extract unique ID from source record */
+  /** Extract unique ID from source record (for INSERT/MODIFY events) */
   extractId(record: Record<string, unknown>): string;
+
+  /**
+   * Extract unique ID from DynamoDB Keys (for REMOVE events).
+   * Keys may have different structure than full records.
+   * Defaults to calling extractId() if not implemented.
+   */
+  extractIdFromKeys?(keys: Record<string, unknown>): string;
 
   /** Transform source record to unified content */
   transformContent(record: Record<string, unknown>): Record<string, unknown>;
@@ -27,7 +34,6 @@ export interface RecordTransformer {
   /** Get created_at from source record */
   getCreatedAt(record: Record<string, unknown>): string | undefined;
 
-  /** Get updated_at from source record */
   /** Get updated_at from source record */
   getUpdatedAt(record: Record<string, unknown>): string | undefined;
 
@@ -62,6 +68,44 @@ export function buildUnifiedRecord(
     gsi_global_pk: 'GLOBAL',
     is_archived: false,
   };
+}
+
+/**
+ * Extract ID for delete operations (REMOVE events).
+ * Uses extractIdFromKeys if available, otherwise tries extractId.
+ * Falls back to OldImage if Keys don't have expected fields.
+ */
+export function extractIdForDelete(
+  transformer: RecordTransformer,
+  keys: Record<string, unknown>,
+  oldImage?: Record<string, unknown>
+): string {
+  // Try extractIdFromKeys first if implemented
+  if (transformer.extractIdFromKeys) {
+    try {
+      return transformer.extractIdFromKeys(keys);
+    } catch {
+      // Fall through to other methods
+    }
+  }
+
+  // Try extractId with keys
+  try {
+    return transformer.extractId(keys);
+  } catch {
+    // Keys don't have expected fields
+  }
+
+  // Try extractId with OldImage (contains full record)
+  if (oldImage) {
+    try {
+      return transformer.extractId(oldImage);
+    } catch {
+      // OldImage doesn't have expected fields either
+    }
+  }
+
+  throw new Error('Cannot extract ID for delete: no valid keys or oldImage');
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -272,6 +316,13 @@ export const soliloquiesTransformer: RecordTransformer = {
   extractId(record) {
     const id = record['soliloquyId'] as string;
     if (!id) throw new Error('Missing soliloquyId');
+    return id;
+  },
+
+  // For REMOVE events, Keys may have 'soliloquyId' as partition key
+  extractIdFromKeys(keys) {
+    const id = keys['soliloquyId'] as string || keys['PK'] as string || keys['id'] as string;
+    if (!id) throw new Error('Cannot extract ID from keys for REMOVE event');
     return id;
   },
 
