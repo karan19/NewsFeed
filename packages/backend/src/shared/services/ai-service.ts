@@ -16,14 +16,14 @@ export class AiService {
         switch (recordType) {
             case 'PROJECT':
                 return `
-Turn this project record into a short, friendly newsfeed update. Summarize what the project is about, note its current status, and add a brief piece of insight or encouragement. For example, if it’s a 3D project, you might say: 'Great progress on the 3D map! Maybe next you could explore adding interactive elements.'
+Turn this project record into a short, friendly newsfeed update. Summarize what the project is about, note its current status, and add a brief piece of insight or encouragement. For example, if it's a 3D project, you might say: 'Great progress on the 3D map! Maybe next you could explore adding interactive elements.'
 
 Record:
 ${jsonContent}
 `;
             case 'NOTE':
                 return `
-Convert this note record into a concise newsfeed entry. Include the note’s title and a quick summary of its content. Then offer a small reflection or suggestion, like: 'Interesting thought! You might want to tag this for future reference on similar topics.'
+Convert this note record into a concise newsfeed entry. Include the note's title and a quick summary of its content. Then offer a small reflection or suggestion, like: 'Interesting thought! You might want to tag this for future reference on similar topics.'
 
 Record:
 ${jsonContent}
@@ -37,14 +37,14 @@ ${jsonContent}
 `;
             case 'CAPTURE':
                 return `
-Transform this captured content into a newsfeed highlight. Mention the title and source, and provide a brief insight—like key takeaways or why it’s interesting. For example: 'Just watched a great YouTube video on topic X—really insightful! You might want to dive deeper into [related topic].'
+Transform this captured content into a newsfeed highlight. Mention the title and source, and provide a brief insight—like key takeaways or why it's interesting. For example: 'Just watched a great YouTube video on topic X—really insightful! You might want to dive deeper into [related topic].'
 
 Record:
 ${jsonContent}
 `;
             case 'LLM_CONVERSATION':
                 return `
-Summarize this LLM conversation into a newsfeed entry. Include what you asked and a key part of the AI’s response. Then add a quick reflective comment, like: 'Interesting discussion! Maybe next time you could ask about [another angle].'
+Summarize this LLM conversation into a newsfeed entry. Include what you asked and a key part of the AI's response. Then add a quick reflective comment, like: 'Interesting discussion! Maybe next time you could ask about [another angle].'
 
 Record:
 ${jsonContent}
@@ -58,7 +58,7 @@ ${jsonContent}
 `;
             case 'CONTACT':
                 return `
-Summarize this contact record into a brief newsfeed entry. Mention the person’s name and role, and add a little note—like: 'Remember to follow up with this person next week about [topic].'
+Summarize this contact record into a brief newsfeed entry. Mention the person's name and role, and add a little note—like: 'Remember to follow up with this person next week about [topic].'
 
 Record:
 ${jsonContent}
