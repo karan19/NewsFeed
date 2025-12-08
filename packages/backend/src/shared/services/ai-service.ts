@@ -1,6 +1,7 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 import { logger } from "../utils/logger";
 import { UnifiedRecord } from "../types/unified-record";
+import { dlqService } from "./dlq-service";
 
 export class AiService {
     private client: BedrockRuntimeClient;
@@ -109,26 +110,53 @@ ${jsonContent}
 
             try {
                 const parsed = JSON.parse(cleanJson);
+
+                // Check for empty/missing fields
+                if (!parsed.summary || !parsed.insight) {
+                    await dlqService.sendToQueue(
+                        record,
+                        "EMPTY_AI_FIELDS",
+                        `Missing fields: summary=${!!parsed.summary}, insight=${!!parsed.insight}`
+                    );
+                }
+
                 return {
-                    summary: parsed.summary || "No summary generated.",
-                    insight: parsed.insight || "No insight generated."
+                    summary: parsed.summary || "Unable to generate summary.",
+                    insight: parsed.insight || "Unable to generate insight."
                 };
-            } catch (e) {
+            } catch (parseError) {
                 logger.warn("Failed to parse AI response as JSON", { responseText });
+
+                // Send to DLQ for invalid JSON
+                await dlqService.sendToQueue(
+                    record,
+                    "INVALID_JSON_RESPONSE",
+                    `Failed to parse response: ${(parseError as Error).message}. Raw response: ${responseText.substring(0, 200)}`
+                );
+
                 return {
-                    summary: responseText, // Fallback to raw text if parsing fails
-                    insight: "Could not generate structured insight."
+                    summary: "Unable to generate summary.",
+                    insight: "Unable to generate insight."
                 };
             }
 
         } catch (error) {
             logger.error("Error invoking Bedrock", error as Error);
+
+            // Send to DLQ for API error
+            await dlqService.sendToQueue(
+                record,
+                "BEDROCK_API_ERROR",
+                (error as Error).message
+            );
+
             return {
-                summary: "AI summary unavailable.",
-                insight: "AI insight unavailable."
+                summary: "Unable to generate summary.",
+                insight: "Unable to generate insight."
             };
         }
     }
 }
 
 export const aiService = new AiService();
+

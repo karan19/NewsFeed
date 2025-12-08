@@ -1,5 +1,6 @@
 import { UnifiedRecord } from '../types/unified-record';
 import { aiService } from '../services/ai-service';
+import { dlqService } from '../services/dlq-service';
 import { logger } from './logger';
 
 /**
@@ -34,7 +35,20 @@ export async function enrichUnifiedRecord(record: UnifiedRecord): Promise<Unifie
         };
     } catch (error) {
         logger.error('Failed to enrich record', error as Error);
-        // Return original record on failure to ensure data durability even if enrichment fails
-        return record;
+
+        // Send to DLQ for unexpected enrichment failures
+        await dlqService.sendToQueue(
+            record,
+            'ENRICHMENT_FAILED',
+            (error as Error).message
+        );
+
+        // Return record with fallback AI messages to ensure data durability
+        return {
+            ...record,
+            ai_summary: 'Unable to generate summary.',
+            ai_insight: 'Unable to generate insight.'
+        };
     }
 }
+

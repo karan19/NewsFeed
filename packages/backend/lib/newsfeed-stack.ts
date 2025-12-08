@@ -5,6 +5,7 @@ import * as lambdaNodejs from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 import * as path from 'path';
 import { StreamEnabler } from './constructs/stream-enabler';
@@ -12,6 +13,7 @@ import { getEnabledSourceTables, KMS_KEY_ARN, SourceTableConfig } from '../src/c
 
 export class NewsFeedStack extends cdk.Stack {
   public readonly unifiedTable: dynamodb.Table;
+  public readonly aiEnrichmentDlq: sqs.Queue;
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
@@ -91,6 +93,54 @@ export class NewsFeedStack extends cdk.Stack {
       },
       projectionType: dynamodb.ProjectionType.ALL,
     });
+
+    // Create SQS queue for AI enrichment failures (DLQ)
+    this.aiEnrichmentDlq = new sqs.Queue(this, 'AiEnrichmentDlq', {
+      queueName: 'NewsFeed-AiEnrichmentDLQ',
+      retentionPeriod: cdk.Duration.days(14),
+      visibilityTimeout: cdk.Duration.seconds(60), // Increased for redrive Lambda processing time
+    });
+
+    // Create DLQ Redrive Lambda
+    const dlqRedrive = new lambdaNodejs.NodejsFunction(this, 'DlqRedrive', {
+      functionName: 'NewsFeed-DlqRedrive',
+      description: 'Reprocesses failed AI enrichment records from DLQ',
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'handler',
+      entry: path.join(__dirname, '../src/lambdas/dlq-redrive/handler.ts'),
+      timeout: cdk.Duration.seconds(60),
+      memorySize: 256,
+      environment: {
+        UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
+        AI_ENRICHMENT_DLQ_URL: this.aiEnrichmentDlq.queueUrl,
+        LOG_LEVEL: 'INFO',
+      },
+      bundling: {
+        minify: true,
+        sourceMap: true,
+        externalModules: ['@aws-sdk/*'],
+      },
+    });
+
+    // Grant permissions to redrive Lambda
+    this.unifiedTable.grantReadWriteData(dlqRedrive);
+    this.aiEnrichmentDlq.grantConsumeMessages(dlqRedrive);
+    this.aiEnrichmentDlq.grantSendMessages(dlqRedrive); // For re-queueing failed retries
+
+    // Grant Bedrock permissions to redrive Lambda
+    dlqRedrive.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['bedrock:InvokeModel'],
+      resources: ['*'],
+    }));
+
+    // Add SQS event source (processes DLQ automatically when messages arrive)
+    dlqRedrive.addEventSource(
+      new lambdaEventSources.SqsEventSource(this.aiEnrichmentDlq, {
+        batchSize: 5,
+        maxBatchingWindow: cdk.Duration.seconds(10),
+        reportBatchItemFailures: true,
+      })
+    );
 
     // Create Feed Reader Lambda
     const feedReader = new lambdaNodejs.NodejsFunction(this, 'FeedReader', {
@@ -211,6 +261,7 @@ export class NewsFeedStack extends cdk.Stack {
       environment: {
         UNIFIED_TABLE_NAME: this.unifiedTable.tableName,
         SOURCE_TABLE_NAME: tableName,
+        AI_ENRICHMENT_DLQ_URL: this.aiEnrichmentDlq.queueUrl,
         LOG_LEVEL: 'INFO',
       },
       bundling: {
@@ -222,6 +273,9 @@ export class NewsFeedStack extends cdk.Stack {
 
     // Grant write permissions to unified table
     this.unifiedTable.grantReadWriteData(processor);
+
+    // Grant SQS send permissions for AI enrichment DLQ
+    this.aiEnrichmentDlq.grantSendMessages(processor);
 
     // Grant read permissions on source table stream
     processor.addToRolePolicy(new iam.PolicyStatement({
