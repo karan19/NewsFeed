@@ -259,8 +259,8 @@ const FeedCard = ({ item, onArchive, onExpand }: { item: FeedItemData, onArchive
           `}>
 
           {/* Header */}
-          <div className={`flex items-center justify-between w-full mb-3 ${isQuote ? 'absolute top-4 right-4 w-auto mb-0' : ''}`}>
-            <div className={`flex items-center gap-2 ${isQuote ? 'hidden' : ''}`}>
+          <div className={`flex items-center justify-between w-full mb-3`}>
+            <div className={`flex items-center gap-2 ${isQuote ? 'invisible' : ''}`}>
               {Icon && (
                 <div className={`p-1 rounded-md bg-muted ${config.color}`}>
                   <Icon size={12} />
@@ -278,7 +278,6 @@ const FeedCard = ({ item, onArchive, onExpand }: { item: FeedItemData, onArchive
 
             {/* Header Actions */}
             <div className="flex items-center gap-2">
-              {item.aiSummary && <div className="text-[10px] font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded">AI</div>}
               <button
                 className="text-muted-foreground hover:text-primary transition-all p-1.5 rounded-md hover:bg-muted"
                 onClick={(e) => {
@@ -488,8 +487,8 @@ const ExpandedModal = ({ item, onClose }: { item: FeedItemData, onClose: () => v
             <button
               onClick={() => setShowInsight(!showInsight)}
               className={`w-full py-3 px-4 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors ${showInsight
-                  ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
-                  : 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400'
+                ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                : 'bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400'
                 }`}
             >
               {showInsight ? (

@@ -3,7 +3,7 @@ import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { StreamEventType } from '../../shared/types';
 import { logger, putUnifiedRecord, hardDeleteUnifiedRecord, enrichUnifiedRecord } from '../../shared/utils';
-import { contactsTransformer, buildUnifiedRecord } from '../../shared/transformers';
+import { contactsTransformer, buildUnifiedRecord, extractIdForDelete } from '../../shared/transformers';
 
 /**
  * Process a single DynamoDB Stream record
@@ -31,12 +31,16 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
       const keys = unmarshall(
         record.dynamodb.Keys as Record<string, AttributeValue>
       );
+      const oldImage = record.dynamodb?.OldImage
+        ? unmarshall(record.dynamodb.OldImage as Record<string, AttributeValue>)
+        : undefined;
 
-      const originalId = contactsTransformer.extractId(keys);
+      const originalId = extractIdForDelete(contactsTransformer, keys, oldImage);
       const pk = `${contactsTransformer.sourceTableName}#${originalId}`;
       const sk = 'RECORD';
 
       await hardDeleteUnifiedRecord(pk, sk);
+      logger.info('Deleted record from unified table', { pk, sk });
     } else {
       // Handle INSERT or MODIFY
       if (!record.dynamodb?.NewImage) {
@@ -86,4 +90,3 @@ export async function handler(event: DynamoDBStreamEvent): Promise<void> {
     recordCount: event.Records.length,
   });
 }
-
