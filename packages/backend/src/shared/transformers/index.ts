@@ -269,9 +269,13 @@ export const llmCouncilTransformer: RecordTransformer = {
   extractId(record) {
     const id = record['id'] as string;
     if (!id) throw new Error('Missing id');
-    if (id.startsWith('user_council')) {
-      throw new Error('SKIPPING_RECORD: Internal user_council record');
+
+    // Ignore internal records
+    const ignoredPrefixes = ['user_council', 'user_panel'];
+    if (ignoredPrefixes.some(prefix => id.startsWith(prefix))) {
+      throw new Error(`SKIPPING_RECORD: Internal record (${id})`);
     }
+
     return id;
   },
 
