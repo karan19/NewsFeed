@@ -20,6 +20,7 @@ import { DynamoDBDocumentClient, BatchWriteCommand } from '@aws-sdk/lib-dynamodb
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { getEnabledSourceTables, SourceTableConfig } from '../src/config/source-tables';
 import { getTransformer, buildUnifiedRecord, RecordTransformer } from '../src/shared/transformers';
+import { enrichUnifiedRecord } from '../src/shared/utils';
 import { UnifiedRecord } from '../src/shared/types';
 
 // ════════════════════════════════════════════════════════════════════
@@ -198,7 +199,12 @@ async function backfillTable(
 
       try {
         const record = unmarshall(item as Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>);
-        const unifiedRecord = buildUnifiedRecord(transformer, record, 'INSERT');
+        let unifiedRecord = buildUnifiedRecord(transformer, record, 'INSERT');
+
+        // Enrich with AI
+        // Note: This adds significant latency per record.
+        unifiedRecord = await enrichUnifiedRecord(unifiedRecord);
+
         unifiedRecords.push(unifiedRecord);
         stats.transformed++;
       } catch (error) {

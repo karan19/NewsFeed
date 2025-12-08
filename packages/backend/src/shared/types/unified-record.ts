@@ -43,6 +43,12 @@ export interface UnifiedRecord {
 
   /** Archive flag */
   is_archived: boolean;
+
+  /** AI-generated summary of the content */
+  ai_summary?: string;
+
+  /** AI-generated insight or suggestion */
+  ai_insight?: string;
 }
 
 /**

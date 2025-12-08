@@ -2,7 +2,7 @@ import { DynamoDBStreamEvent, DynamoDBRecord } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { StreamEventType } from '../../shared/types';
-import { logger, putUnifiedRecord, hardDeleteUnifiedRecord } from '../../shared/utils';
+import { logger, putUnifiedRecord, hardDeleteUnifiedRecord, enrichUnifiedRecord } from '../../shared/utils';
 import { notesTransformer, buildUnifiedRecord } from '../../shared/transformers';
 
 /**
@@ -65,7 +65,10 @@ async function processRecord(record: DynamoDBRecord): Promise<void> {
         record.dynamodb.NewImage as Record<string, AttributeValue>
       );
 
-      const unifiedRecord = buildUnifiedRecord(notesTransformer, newImage, eventType);
+      let unifiedRecord = buildUnifiedRecord(notesTransformer, newImage, eventType);
+
+      // Enrich with AI
+      unifiedRecord = await enrichUnifiedRecord(unifiedRecord);
 
       logger.info('Syncing note to unified table', {
         recordId: unifiedRecord.original_id,
