@@ -74,64 +74,103 @@ ${jsonContent}
         }
     }
 
+    private async delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
     async generateEnrichment(record: UnifiedRecord): Promise<{ summary: string; insight: string }> {
-        try {
-            const prompt = this.getPromptForRecordType(record.record_type, record.content);
+        const maxRetries = 3;
+        let lastError: Error | null = null;
 
-            const payload = {
-                anthropic_version: "bedrock-2023-05-31",
-                max_tokens: 300,
-                messages: [
-                    {
-                        role: "user",
-                        content: [
-                            {
-                                type: "text",
-                                text: prompt + "\n\nReturn the result as a raw JSON object with keys 'summary' and 'insight'. Do not include markdown formatting or explanations."
-                            }
-                        ]
-                    }
-                ]
-            };
-
-            const command = new InvokeModelCommand({
-                modelId: this.modelId,
-                contentType: "application/json",
-                accept: "application/json",
-                body: JSON.stringify(payload)
-            });
-
-            const response = await this.client.send(command);
-            const responseBody = JSON.parse(new TextDecoder().decode(response.body));
-            const responseText = responseBody.content[0].text;
-
-            // Clean up potential markdown code blocks if the model ignores instruction (robustness)
-            const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                const parsed = JSON.parse(cleanJson);
+                const prompt = this.getPromptForRecordType(record.record_type, record.content);
 
-                // Check for empty/missing fields
-                if (!parsed.summary || !parsed.insight) {
+                const payload = {
+                    anthropic_version: "bedrock-2023-05-31",
+                    max_tokens: 300,
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                                {
+                                    type: "text",
+                                    text: prompt + "\n\nReturn the result as a raw JSON object with keys 'summary' and 'insight'. Do not include markdown formatting or explanations."
+                                }
+                            ]
+                        }
+                    ]
+                };
+
+                const command = new InvokeModelCommand({
+                    modelId: this.modelId,
+                    contentType: "application/json",
+                    accept: "application/json",
+                    body: JSON.stringify(payload)
+                });
+
+                const response = await this.client.send(command);
+                const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+                const responseText = responseBody.content[0].text;
+
+                // Clean up potential markdown code blocks if the model ignores instruction (robustness)
+                const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                try {
+                    const parsed = JSON.parse(cleanJson);
+
+                    // Check for empty/missing fields
+                    if (!parsed.summary || !parsed.insight) {
+                        // Don't send to DLQ for partial success, just log and use fallbacks
+                        logger.warn("AI returned empty fields", {
+                            recordId: record.original_id,
+                            hasSummary: !!parsed.summary,
+                            hasInsight: !!parsed.insight
+                        });
+                    }
+
+                    return {
+                        summary: parsed.summary || "Unable to generate summary.",
+                        insight: parsed.insight || "Unable to generate insight."
+                    };
+                } catch (parseError) {
+                    logger.warn(`Failed to parse AI response (attempt ${attempt}/${maxRetries})`, { responseText });
+                    lastError = parseError as Error;
+
+                    // For parse errors, retry immediately (might be transient model issue)
+                    if (attempt < maxRetries) {
+                        await this.delay(500 * attempt); // 500ms, 1000ms backoff
+                        continue;
+                    }
+
+                    // After all retries failed, send to DLQ
                     await dlqService.sendToQueue(
                         record,
-                        "EMPTY_AI_FIELDS",
-                        `Missing fields: summary=${!!parsed.summary}, insight=${!!parsed.insight}`
+                        "INVALID_JSON_RESPONSE",
+                        `Failed after ${maxRetries} attempts. Last error: ${lastError.message}. Raw: ${responseText.substring(0, 200)}`
                     );
+
+                    return {
+                        summary: "Unable to generate summary.",
+                        insight: "Unable to generate insight."
+                    };
                 }
 
-                return {
-                    summary: parsed.summary || "Unable to generate summary.",
-                    insight: parsed.insight || "Unable to generate insight."
-                };
-            } catch (parseError) {
-                logger.warn("Failed to parse AI response as JSON", { responseText });
+            } catch (error) {
+                lastError = error as Error;
+                logger.warn(`Bedrock API error (attempt ${attempt}/${maxRetries})`, { error: lastError.message });
 
-                // Send to DLQ for invalid JSON
+                if (attempt < maxRetries) {
+                    // Exponential backoff: 1s, 2s
+                    await this.delay(1000 * attempt);
+                    continue;
+                }
+
+                // After all retries failed, send to DLQ
                 await dlqService.sendToQueue(
                     record,
-                    "INVALID_JSON_RESPONSE",
-                    `Failed to parse response: ${(parseError as Error).message}. Raw response: ${responseText.substring(0, 200)}`
+                    "BEDROCK_API_ERROR",
+                    `Failed after ${maxRetries} attempts. Last error: ${lastError.message}`
                 );
 
                 return {
@@ -139,24 +178,14 @@ ${jsonContent}
                     insight: "Unable to generate insight."
                 };
             }
-
-        } catch (error) {
-            logger.error("Error invoking Bedrock", error as Error);
-
-            // Send to DLQ for API error
-            await dlqService.sendToQueue(
-                record,
-                "BEDROCK_API_ERROR",
-                (error as Error).message
-            );
-
-            return {
-                summary: "Unable to generate summary.",
-                insight: "Unable to generate insight."
-            };
         }
+
+        // Should never reach here, but TypeScript needs it
+        return {
+            summary: "Unable to generate summary.",
+            insight: "Unable to generate insight."
+        };
     }
 }
 
 export const aiService = new AiService();
-

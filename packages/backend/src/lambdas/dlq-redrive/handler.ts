@@ -1,29 +1,67 @@
-import { SQSEvent, SQSBatchResponse, SQSBatchItemFailure } from 'aws-lambda';
+import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand } from '@aws-sdk/client-sqs';
 import { DlqMessage, dlqService, DlqErrorType } from '../../shared/services/dlq-service';
 import { enrichUnifiedRecord } from '../../shared/utils/enrichment';
 import { putUnifiedRecord } from '../../shared/utils/dynamodb-client';
 import { logger } from '../../shared/utils/logger';
 
 const MAX_RETRY_COUNT = 3;
+const BATCH_SIZE = 10;
+
+interface RedriveResult {
+    processed: number;
+    succeeded: number;
+    failed: number;
+    requeued: number;
+}
 
 /**
- * DLQ Redrive Lambda
- * Processes failed AI enrichment records and re-attempts enrichment.
+ * DLQ Redrive Lambda - MANUAL INVOCATION ONLY
+ * 
+ * Pulls failed AI enrichment records from DLQ and re-attempts enrichment.
+ * Invoke manually via AWS Console or CLI:
+ *   aws lambda invoke --function-name NewsFeed-DlqRedrive output.json
  * 
  * Flow:
- * 1. Read DLQ message containing full UnifiedRecord
- * 2. Re-attempt enrichUnifiedRecord
- * 3. If successful: save to DynamoDB
+ * 1. Pull messages from DLQ
+ * 2. Re-attempt enrichUnifiedRecord for each
+ * 3. If successful: save to DynamoDB, delete from queue
  * 4. If failed: re-queue with incremented retryCount (up to MAX_RETRY_COUNT)
  */
-export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
-    const batchItemFailures: SQSBatchItemFailure[] = [];
+export const handler = async (): Promise<RedriveResult> => {
+    const sqsClient = new SQSClient({ region: process.env.AWS_REGION || 'us-west-2' });
+    const queueUrl = process.env.AI_ENRICHMENT_DLQ_URL;
 
-    for (const sqsRecord of event.Records) {
-        const messageId = sqsRecord.messageId;
+    if (!queueUrl) {
+        throw new Error('AI_ENRICHMENT_DLQ_URL environment variable not set');
+    }
+
+    const result: RedriveResult = {
+        processed: 0,
+        succeeded: 0,
+        failed: 0,
+        requeued: 0,
+    };
+
+    // Pull messages from queue
+    const receiveCommand = new ReceiveMessageCommand({
+        QueueUrl: queueUrl,
+        MaxNumberOfMessages: BATCH_SIZE,
+        WaitTimeSeconds: 5,
+        MessageAttributeNames: ['All'],
+    });
+
+    const response = await sqsClient.send(receiveCommand);
+    const messages = response.Messages || [];
+
+    logger.info('Received messages from DLQ', { count: messages.length });
+
+    for (const sqsMessage of messages) {
+        if (!sqsMessage.Body || !sqsMessage.ReceiptHandle) continue;
+
+        result.processed++;
 
         try {
-            const dlqMessage: DlqMessage = JSON.parse(sqsRecord.body);
+            const dlqMessage: DlqMessage = JSON.parse(sqsMessage.Body);
             const { record, errorType, retryCount } = dlqMessage;
 
             logger.info('Processing DLQ message', {
@@ -39,7 +77,13 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
                     recordId: record.original_id,
                     retryCount,
                 });
-                // Don't re-queue, let it be deleted from DLQ
+                result.failed++;
+
+                // Delete from queue - no more retries
+                await sqsClient.send(new DeleteMessageCommand({
+                    QueueUrl: queueUrl,
+                    ReceiptHandle: sqsMessage.ReceiptHandle,
+                }));
                 continue;
             }
 
@@ -66,6 +110,13 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
                     recordId: record.original_id,
                     retryCount,
                 });
+                result.succeeded++;
+
+                // Delete from queue
+                await sqsClient.send(new DeleteMessageCommand({
+                    QueueUrl: queueUrl,
+                    ReceiptHandle: sqsMessage.ReceiptHandle,
+                }));
             } else {
                 // Enrichment still failed, re-queue with incremented retry count
                 logger.warn('Enrichment still failed on redrive', {
@@ -79,15 +130,22 @@ export const handler = async (event: SQSEvent): Promise<SQSBatchResponse> => {
                     'Redrive enrichment failed',
                     retryCount + 1
                 );
+                result.requeued++;
+
+                // Delete original message (new one was queued with incremented retry)
+                await sqsClient.send(new DeleteMessageCommand({
+                    QueueUrl: queueUrl,
+                    ReceiptHandle: sqsMessage.ReceiptHandle,
+                }));
             }
 
         } catch (error) {
-            logger.error('Error processing DLQ message', error as Error, { messageId });
-
-            // Add to batch failures so SQS will retry
-            batchItemFailures.push({ itemIdentifier: messageId });
+            logger.error('Error processing DLQ message', error as Error);
+            result.failed++;
+            // Don't delete - let it become visible again for retry
         }
     }
 
-    return { batchItemFailures };
+    logger.info('Redrive complete', { ...result });
+    return result;
 };

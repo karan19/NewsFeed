@@ -133,14 +133,9 @@ export class NewsFeedStack extends cdk.Stack {
       resources: ['*'],
     }));
 
-    // Add SQS event source (processes DLQ automatically when messages arrive)
-    dlqRedrive.addEventSource(
-      new lambdaEventSources.SqsEventSource(this.aiEnrichmentDlq, {
-        batchSize: 5,
-        maxBatchingWindow: cdk.Duration.seconds(10),
-        reportBatchItemFailures: true,
-      })
-    );
+    // NOTE: No SQS event source - redrive is MANUAL ONLY
+    // To trigger manually, invoke Lambda via AWS Console or CLI:
+    // aws lambda invoke --function-name NewsFeed-DlqRedrive --invocation-type Event output.json
 
     // Create Feed Reader Lambda
     const feedReader = new lambdaNodejs.NodejsFunction(this, 'FeedReader', {
